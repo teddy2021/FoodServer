@@ -42,6 +42,9 @@ bool stringEqual(string str1, string str2){
 	string two(str2);
 	trim(one);
 	trim(two);
+	if(one.size() == 0 && two.size() == 0){
+		return true;
+	}
 	bool equal = false;
 	for(int i = 0; i < std::min(str1.size(), str2.size()); i += 1){
 		equal = (one[i] == two[i]);
@@ -380,18 +383,18 @@ TEST_CASE("Testing TCPCommunicator", "[TCP]"){
 		TCPCommunicator * com2 = new TCPCommunicator(con2, 8081);
 
 
-		com1->Connect(con1, "localhost", 8081);
-		std::thread t1([](boost::asio::io_context &ctx){
+		std::thread t1([](boost::asio::io_context &ctx, TCPCommunicator * com){
+				com->Connect(ctx, "localhost", 8081);
 				ctx.run();
-				}, std::ref(con2));
+				}, std::ref(con2), com1);
 
 		com2->Accept();
 		t1.join();
 		
-		com2->Connect(con2, "localhost", 8080);
-		std::thread t2([](boost::asio::io_context &ctx){
+		std::thread t2([](boost::asio::io_context &ctx, TCPCommunicator * com){
+				com->Connect(ctx, "localhost", 8081);
 				ctx.run();
-				}, std::ref(con1));
+				}, std::ref(con1), com2);
 		com1->Accept();
 		t2.join();
 
@@ -705,7 +708,7 @@ TEST_CASE("Testing DBConnector"){
 
 }
 
-TEST_CASE("Teasting FileManager", "[FM]"){
+TEST_CASE("Testing FileManager", "[FM]"){
 	SECTION("Testing good inputs"){
 		FileManager f("../pages/index.html");
 		CHECK(f.getLineCount() == 15);
@@ -715,8 +718,8 @@ TEST_CASE("Teasting FileManager", "[FM]"){
 		string line;
 		int i = 0;
 		while(std::getline(file, line)){
+			INFO("i=" << i << "; line='" << line << "'; file line = '" << f.getLine(i) << "'");
 			CHECK(stringEqual(line, f.getLine(i)));
-			INFO("Failed at i=" << i << " with line='" << line << "' and file line of '" << f.getLine(i) << "'");
 			i += 1;
 		}
 		file.close();
@@ -754,8 +757,8 @@ TEST_CASE("Testing NetMessenger", "[NM]"){
 		NetMessenger *nm1 = new NetMessenger(tcp, 8080);
 		NetMessenger *nm2 = new NetMessenger(tcp, 8081);
 		NetMessenger *nm3 = new NetMessenger(tcp, 8083);
-		Recipient r1 = std::make_shared<recipient>(new recipient);
-		Recipient r2 = std::make_shared<recipient>(new recipient);
+		Recipient * r1 = std::make_shared();
+		Recipient * r2 = std::make_shared();
 
 		r1->address = "localhost";
 		r2->address = "localhost";
@@ -789,6 +792,8 @@ TEST_CASE("Testing NetMessenger", "[NM]"){
 		delete nm1;
 		delete nm2;
 		delete nm3;
+		delete r1;
+		delete r2;
 	}
 
 	SECTION("Testing basic UDP NetMessenger", "[NM][UDP]"){
