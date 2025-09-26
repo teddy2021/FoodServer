@@ -191,7 +191,9 @@ void TCPCommunicator::Connect(boost::asio::io_context & context, string address)
 	if(res.empty()){
 		throw std::runtime_error("Failed to resolve any peers on " + address + ":0xBEEF");
 	}
-	
+	if(socket.is_open()){
+		socket.close();
+	}
 	boost::asio::async_connect(socket, res, boost::bind(
 				&TCPCommunicator::HandleConnect,
 				this,

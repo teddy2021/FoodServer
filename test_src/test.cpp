@@ -319,6 +319,7 @@ TEST_CASE("Testing UDPCommunicator", "[UDP]"){
 
 	SECTION("UDP multiple agents", "[UDP][SEND][RECV][REPLY][MULTI]"){
 		vector<string> alphabet;
+		const int SOCK_MAX = 10;
 		for(char32_t i = 0; i < 0x10FFFF; i++){
 			if((0xDFFF <= i && i <= 0xD800) || (0xFDEF <= i && i <= 0xFDD0) || (i == 0xFFFE)){
 				continue;
@@ -330,11 +331,14 @@ TEST_CASE("Testing UDPCommunicator", "[UDP]"){
 		std::random_device rand_dev;
 		std::mt19937 eng(rand_dev());
 		std::uniform_int_distribution<> dist(0, alphabet.size() - 1);
-		for(int i = 0; i < 20; i += 1){
+		for(int i = 0; i < SOCK_MAX; i += 1){
+			INFO("Creating socket number " << i);
 			agents[i] = new UDPCommunicator(con, 8080 + i);
 		}
-		for(int i = 0; i < 20; i += 2){
+		for(int i = 0; i < SOCK_MAX; i += 2){
+			INFO("Connecting " << i << "->" << (i+1));
 			agents[i]->Connect(con, "localhost", 8080 + i + 1);
+			INFO("Connecting " << (i + 1) << "->" << i);
 			agents[i+1]->Connect(con, "localhost", 8080 + i);
 		}
 
@@ -744,9 +748,9 @@ TEST_CASE("Testing MessageManager", "[MM]"){
 		CHECK(idx2 != -2);
 		string message2("Goodbye");
 		CHECK_NOTHROW(manager.StoreMessage(idx2, message2));
-		string stored2;
+		string stored2 = "asntd";
 		CHECK_NOTHROW(stored = manager.Pop());
-		INFO("'" << message2 << "' == '" << stored2 << "'");
+		INFO("[" << idx2 << "]'" << message2 << "' != '" << stored2 << "'");
 		CHECK(stringEqual(message2, stored2));
 	}
 }
@@ -757,8 +761,8 @@ TEST_CASE("Testing NetMessenger", "[NM]"){
 		NetMessenger *nm1 = new NetMessenger(tcp, 8080);
 		NetMessenger *nm2 = new NetMessenger(tcp, 8081);
 		NetMessenger *nm3 = new NetMessenger(tcp, 8083);
-		Recipient * r1 = std::make_shared();
-		Recipient * r2 = std::make_shared();
+		Recipient r1 = std::make_shared<recipient>();
+		Recipient r2 = std::make_shared<recipient>();
 
 		r1->address = "localhost";
 		r2->address = "localhost";
@@ -768,10 +772,10 @@ TEST_CASE("Testing NetMessenger", "[NM]"){
 		string msg1("Hello"), msg2, msg3;
 		CHECK_NOTHROW( nm1->SendTo(msg1, r1) );
 		CHECK_NOTHROW( nm2->Receive() );
-		CHECK_NOTHROW( nm3->Receive() );
+		CHECK_THROWS( nm3->Receive() );
 
 		CHECK_NOTHROW( msg2 = nm2->GetFirstMessage() );
-		CHECK_NOTHROW( msg3 = nm3->GetFirstMessage() );
+		CHECK_THROWS( msg3 = nm3->GetFirstMessage() );
 
 		CHECK(stringEqual(msg1, msg2));
 		CHECK(!stringEqual(msg1, msg3));
@@ -780,7 +784,7 @@ TEST_CASE("Testing NetMessenger", "[NM]"){
 		msg2 = string("Goodbye");
 		CHECK_NOTHROW(nm2->ReplyTo(msg2, r1));
 		CHECK_NOTHROW(nm1->Receive());
-		CHECK_NOTHROW(nm3->Receive());
+		CHECK_THROWS(nm3->Receive());
 
 		CHECK_NOTHROW(msg1 = nm1->GetFirstMessage());
 		CHECK_NOTHROW(msg3 = nm3->GetFirstMessage());
@@ -792,8 +796,6 @@ TEST_CASE("Testing NetMessenger", "[NM]"){
 		delete nm1;
 		delete nm2;
 		delete nm3;
-		delete r1;
-		delete r2;
 	}
 
 	SECTION("Testing basic UDP NetMessenger", "[NM][UDP]"){

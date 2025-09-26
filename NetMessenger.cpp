@@ -128,23 +128,30 @@ string NetMessenger::GetFirstMessage(){
 
 void NetMessenger::Send(string message){
 	if(comms->GetProtocol() == udp){  
-		int size = outbox.GetFreeBuffer(); 
-		outbox.StoreMessage(size, std::to_string(message.size()));
+		int idx = outbox.GetFreeBuffer(); 
+		outbox.StoreMessage(idx, std::to_string(message.size()));
 		toGoOut += 1;
 	}
-	int msg = outbox.GetFreeBuffer();
+	int idx = outbox.GetFreeBuffer();
 
-	outbox.StoreMessage(msg, message);
+	outbox.StoreMessage(idx, message);
 	toGoOut += 1;
 	SendNext();
 }
 
 void NetMessenger::SendTo(string message, Recipient recipient){
+	string cur_addr = comms->remote_address();
+	unsigned short cur_prt = comms->remote_port();
 	comms->Connect(context, recipient->address, recipient->port);
+	while(comms->remote_address() == cur_addr && cur_prt == comms->remote_port()){
+	}
 	Send(message);
 }
 
 void NetMessenger::SendNext(){
+	while(nullptr == GetRemoteEndpoint()){
+		sleep(1);
+	}
 	if(toGoOut > 0){
 		try{
 			string message = outbox.Pop();

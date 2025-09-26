@@ -8,6 +8,9 @@
 
 
 struct recipient {
+	recipient(): address(16, ' '), port(0xDEAD){};
+	recipient(recipient & other): address(other.address), port(other.port){};
+	recipient(std::string addr, unsigned short prt): address(addr), port(prt){};
 	std::string address;
 	unsigned int port;
 };

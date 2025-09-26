@@ -71,7 +71,7 @@ void MessageManager::StoreMessage(int index, string message){
 	if(status.empty() || status[index] != in_use ){
 		throw invalid_state_exception("Attempting to store into a buffer that is not reserved");
 	}
-	*buffer[index] = string(message);
+	buffer[index] = std::make_shared<string>(message);
 	status[index] = storing;
 }
 
