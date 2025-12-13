@@ -1,11 +1,13 @@
 
 
+#include <memory>
 #include <thread>
 #include <algorithm>
 #include <utility>
 #include <vector>
 #include <iostream>
 #include <string>
+#include <mariadb/conncpp.hpp>
 
 using std::string;
 using std::pair;
@@ -16,8 +18,9 @@ using std::cerr;
 #include "Server.hpp"
 #include "Enums.hpp"
 #include "httpreq.hpp"
-#include "UDPCommunicator.hpp"
-#include "TCPCommunicator.hpp"
+#include "IDB.hpp"
+#include "dbConnector.hpp"
+#include "NetMessenger.hpp"
 
 Server::~Server(){
 	if(!connections.empty()){
@@ -155,12 +158,17 @@ Server::Server(protocol_type type): messenger(type), db(), connections(){
 	next_worker = 1;
 }
 
-
 Server::Server(protocol_type type, unsigned short int port): messenger(type, port), db(), connections(){
 	worker_count = std::thread::hardware_concurrency();
 	next_worker = 1;
 }
 
+Server::Server(NetMessenger net): messenger(net), db(), connections(){
+	db = std::make_unique<DBConnector>();
+	const auto processor_count = std::thread::hardware_concurrency();
+	worker_count = sysconf(_SC_NPROCESSORS_ONLN);
+	next_worker = 1;
+}
 
 
 void Server::Listen(){
@@ -312,10 +320,10 @@ void Server::AddIngredients(Request request){
 		float amount = std::stof(*(it + 1));
 		string unit = *(it + 2);
 		try{
-			db.CreateIngredient(ingredient, amount, false);
+			db->CreateIngredient(ingredient, amount, false);
 		}
 		catch(...){
-			db.UpdateIngredient(ingredient, amount);
+			db->UpdateIngredient(ingredient, amount);
 		}
 	}
 	Respond(request, "OK");
@@ -324,7 +332,7 @@ void Server::AddIngredients(Request request){
 void Server::RemoveIngredients(Request request){
 	CheckRequest("RemoveIngredients", request);
 	for(string ingredient : request->parameters){
-		db.DeleteIngredient(ingredient);
+		db->DeleteIngredient(ingredient);
 	}
 	Respond(request, "OK");
 }
@@ -343,11 +351,11 @@ void Server::Reserve(Request request){
 		}
 	}
 
-	vector<pair<int, float>> result = db.Reserve(ingredients, amounts);
+	vector<pair<int, float>> result = db->Reserve(ingredients, amounts);
 	vector<pair<string, float>> remainder;
 	if(0 < result.size()){
 		for(int i = 0; i < result.size(); i += 1){
-			string ingredient = db.GetIngredientByIndex(result[i].first);
+			string ingredient = db->GetIngredientByIndex(result[i].first);
 			remainder.push_back(pair<string, float>{ingredient, result[i].second});
 		}
 		AddToGroceryList(remainder);
@@ -387,7 +395,7 @@ void Server::Release(Request request){
 		}
 	}
 	if(!remainingAmounts.empty() && !remainingItems.empty()){
-		db.Release(remainingItems, remainingAmounts);
+		db->Release(remainingItems, remainingAmounts);
 	}
 	else{  
 		Respond(request, "OK");
@@ -398,13 +406,13 @@ void Server::AddRecipe(Request request){
 	CheckRequest("AddRecipe", request);
 	string name = request->parameters[0];
 	string instructions = request->parameters[1];
-	db.CreateRecipe(name, instructions);
+	db->CreateRecipe(name, instructions);
 	Respond(request, "OK");
 }
 
 void Server::RemoveRecipe(Request request){
 	CheckRequest("RemoveRecipe", request);
-	db.DeleteRecipe(request->parameters[0]);
+	db->DeleteRecipe(request->parameters[0]);
 	Respond(request, "OK");
 }
 
@@ -427,10 +435,10 @@ void Server::RespondWithGroceries(Request request){
 
 void Server::GetIngredientsAndInstructions(Request request){
 	CheckRequest("GetIngredientsAndInstructions", request);
-	vector<string> instructions = db.GetInstructions(request->parameters);
+	vector<string> instructions = db->GetInstructions(request->parameters);
 	vector<string> ingredients;
 	for(int i = 0; i < request->parameters.size(); i += 1){
-		 vector<string> subset = db.GetIngredients(request->parameters[i]);
+		 vector<string> subset = db->GetIngredients(request->parameters[i]);
 		 for(int j = 0; j < subset.size(); j += 2){
 			auto it = find(ingredients.begin(), ingredients.end(), subset[j]);
 			 if( it != ingredients.end()){
@@ -484,7 +492,7 @@ void Server::RespondWithIngredientsAndInstructions(vector<string> ingredients,
 
 void Server::MatchRecipe(Request request){
 	CheckRequest("MatchRecipe", request);
-	vector<string> results = db.GetRecipes(request->parameters);
+	vector<string> results = db->GetRecipes(request->parameters);
 	string response = "";
 	for(int i = 0; i < results.size(); i += 1){
 		response += results[i];

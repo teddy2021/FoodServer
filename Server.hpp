@@ -1,10 +1,10 @@
 
 #include "NetMessenger.hpp"
-#include "UDPCommunicator.hpp"
-#include "TCPCommunicator.hpp"
-#include "dbConnector.hpp"
+#include "NetMessenger.hpp"
+#include "IDB.hpp"
 #include "Enums.hpp"
 
+#include <memory>
 #include <utility>
 #include <unordered_map>
 
@@ -21,7 +21,7 @@ class Server{
 
 	private:
 		NetMessenger messenger;
-		DBConnector db;
+		std::unique_ptr<IDB> db;
 		std::unordered_map<std::string, float> groceries;
 
 		unsigned short int next_worker;
@@ -130,18 +130,27 @@ class Server{
 
 	public:
 
-		Server(){};
+Server(){};
 		Server(protocol_type type);
 		Server(protocol_type type, unsigned short port);
+		Server(NetMessenger net);
+
+		Server(NetMessenger & net, std::unique_ptr<IDB> dbconn): 
+			messenger(net), 
+			db(std::move(dbconn)), 
+			connections(){ 
+			worker_count = std::thread::hardware_concurrency();
+			next_worker = 1;
+		};
 		~Server();
 
 		Server(Server &other) = delete;
 		Server & operator=(const Server &other) = delete;
-		Server & operator=(Server &&other){
+Server & operator=(Server &&other){
 			if(this != &other){
-				messenger = std::move(messenger);
-				db = std::move(db);
-				groceries = std::move(groceries);
+				messenger = std::move(other.messenger);
+				db = std::move(other.db);
+				groceries = std::move(other.groceries);
 				next_worker = other.next_worker;
 				worker_count = other.worker_count;
 				connections = std::move(other.connections);

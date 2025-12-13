@@ -73,9 +73,9 @@ void DBConnector::MapRecipeToIngredient(string recipe, float amount, string ingr
 void DBConnector::UpdateIngredient(std::string name, float amount){
 	string statement;
 	if(amount > 0){
-		statement = "update groceries set amount + ? where name = ?";
+		statement = "update groceries set amount = amount + ? where name = ?";
 	} else {
-		statement = "update groceries set amount - ? where name = ?";
+		statement = "update groceries set amount = amount - ? where name = ?";
 	}
 	unique_ptr<PreparedStatement> stmt(connection->prepareStatement(statement));
 	stmt->setFloat(1, amount * ((amount > 0) - (amount < 0)));
@@ -135,9 +135,11 @@ vector<pair<int,float>> DBConnector::Reserve(vector<string> ingredients, vector<
 	}
 	statement += "end)";
 	unique_ptr<PreparedStatement> stmt(connection->prepareStatement(statement));
+	int param = 1;
 	for(int i = 0; i < ingredients.size(); i += 1){
-		stmt->setString(i+1, ingredients[i]);
-		stmt->setFloat(i+2, amounts[i]);
+		stmt->setString(param, ingredients[i]);
+		stmt->setFloat(param + 1, amounts[i]);
+		param += 2;
 	}
 	stmt->executeUpdate();
 	return overages;
@@ -159,7 +161,7 @@ DBConnector::DBConnector(){
 	driver = sql::mariadb::get_driver_instance();
 	sql::SQLString url = ("jdbc:mariadb://localhost:3306/foodserver");
 	sql::Properties properties({
-			{"user", "FoodServer"},
+			{"user", "foodserver"},
 			{"password", res}});
 	connection = std::unique_ptr<sql::Connection>(
 			driver->connect(
@@ -184,7 +186,7 @@ DBConnector::DBConnector(string address){
 	driver = sql::mariadb::get_driver_instance();
 	sql::SQLString url = address;
 	sql::Properties properties({
-			{"user", "FoodServer"},
+			{"user", "foodserver"},
 			{"password", res}});
 	connection = std::unique_ptr<sql::Connection>(
 			driver->connect(

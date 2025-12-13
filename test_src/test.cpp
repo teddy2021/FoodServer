@@ -155,18 +155,23 @@ TEST_CASE("Testing Constructors"){
 
 	SECTION("Testing Server", "[Server],[Construtor]"){
 		Server s;
-		CHECK_NOTHROW(s = Server(udp));
-		CHECK_NOTHROW(s = Server(tcp));
-		CHECK_NOTHROW(s = Server(udp, 8080));
-		CHECK_NOTHROW(s = Server(tcp, 8081));
+		DBConnector db;
+		NetMessenger *udp_c = new NetMessenger(udp, 8080);
+		NetMessenger *tcp_c = new NetMessenger(tcp, 8080);
+		CHECK_NOTHROW(s = Server());
+		CHECK_NOTHROW(s = Server());
+		CHECK_NOTHROW(s = Server(*udp_c));
+		CHECK_NOTHROW(s = Server(*tcp_c));
 
 		Server *s2;
-		CHECK_NOTHROW(s2 = new Server(udp));
-		CHECK_THROWS(s = Server(udp));
+		CHECK_NOTHROW(s2 = new Server(*udp_c));
+		CHECK_NOTHROW(s = Server(*udp_c));
 
-		CHECK_NOTHROW(s2 = new Server(tcp));
-		CHECK_THROWS(s = Server(tcp));
+		CHECK_NOTHROW(s2 = new Server(*tcp_c));
+		CHECK_NOTHROW(s = Server(*tcp_c));
 		delete s2;
+		delete udp_c;
+		delete tcp_c;
 
 	}
 
@@ -966,8 +971,7 @@ TEST_CASE("Testing NetMessenger", "[NM]"){
 
 }
 
-typedef struct{
-	string name;
+typedef struct{ string name;
 	double count;
 	string unit;
 } ingredient_request;
@@ -992,10 +996,14 @@ struct riPair {
 };
 
 TEST_CASE("Testing Server", "[SRV]"){
-
 	SECTION("Testing syn", "[TCP][UDP][SYN]"){
-		Server * server1 = new Server(udp, 2021);
-		Server * server2 = new Server(tcp, 2022);
+		std::unique_ptr<IDB> db1 = std::make_unique<DBConnector>("jdbc:mariadb://localhost:3306/foodservertest");
+		NetMessenger * messenger1 = new NetMessenger(udp);
+		Server * server1 = new Server(*messenger1, std::move(db1));
+
+		std::unique_ptr<IDB> db2 = std::make_unique<DBConnector>("jdbc:mariadb://localhost:3306/foodservertest");
+		NetMessenger * messenger2 = new NetMessenger(tcp);
+		Server * server2 = new Server(*messenger2, std::move(db2));
 
 		Recipient udp_rec;
 		udp_rec->address = "localhost";
@@ -1025,7 +1033,8 @@ TEST_CASE("Testing Server", "[SRV]"){
 	}
 
 	SECTION("Testing addition and deletion requests in UDP", "[UDP][ADD][DEL]"){
-		Server * server = new Server(udp, 2021);
+		NetMessenger msngr(udp, 2021);
+		Server * server = new Server(msngr);
 		Recipient r_serv; 
 		r_serv->address = "localhost";
 		r_serv->port = 2021;
@@ -1064,7 +1073,8 @@ TEST_CASE("Testing Server", "[SRV]"){
 	}
 
 	SECTION("Testing addition and deletion requests in TCP", "[TCP][ADD][DEL]"){
-		Server * server = new Server(tcp, 2021);
+		NetMessenger msngr(tcp, 2021);
+		Server * server = new Server(msngr);
 		Recipient r_serv; 
 		r_serv->address = "localhost";
 		r_serv->port = 2021;
@@ -1107,7 +1117,8 @@ TEST_CASE("Testing Server", "[SRV]"){
 		r_serv->port = 2021;
 		NetMessenger * com = new NetMessenger(udp);
 		DBConnector * db = new DBConnector("jdbc:mariadb://localhost:3306/foodservertest");
-		Server * server = new Server(udp, 2021);
+		NetMessenger msngr(udp, 2021);
+		Server * server = new Server(msngr);
 
 		com->SendTo("0", r_serv);
 
@@ -1138,7 +1149,8 @@ TEST_CASE("Testing Server", "[SRV]"){
 	}
 
 	SECTION("Testing matchings in UDP", "[UDP][MTC]"){
-		Server * server = new Server(udp, 2021);
+		NetMessenger msngr(udp, 2021);
+		Server * server = new Server(msngr);
 		Recipient r_serv;
 		r_serv->address = "localhost";
 		r_serv->port = 2021;
