@@ -2,7 +2,7 @@
 #include <string>
 #include <memory>
 #include <stdexcept>
-#include <iostream>
+#include <cstring>
 
 #include "Enums.hpp"
 
@@ -14,13 +14,15 @@ MessageManager::~MessageManager(){
 	if(buffer.size() > 0){
 		buffer.clear();
 		status.clear();
+		buffer.shrink_to_fit();
+		status.shrink_to_fit();
 	}
 }
 
 string MessageManager::Pop(){
 	string msg("");
 	int i = 0;
-	while(msg.empty()){
+	while(msg.empty() && i < status.size()){
 		try{
 			msg = GetMessageFrom(i);
 		}
@@ -31,6 +33,12 @@ string MessageManager::Pop(){
 			break;
 		}
 	}
+	string tmp(msg);
+	while(tmp.size() != strlen(tmp.c_str())){
+		int pos = strlen(tmp.c_str()) - 1;
+		tmp.erase(pos, 1);
+	}
+	msg = tmp;
 	return msg;
 }
 
@@ -42,7 +50,7 @@ string MessageManager::GetMessageFrom(int index){
 		throw invalid_state_exception("Message requested from a non-storing buffer");
 	}
 	status[index] = dirty;
-	return *buffer[index];
+	return string(*buffer[index]);
 }
 
 int MessageManager::GetFreeBuffer(){
@@ -70,6 +78,9 @@ void MessageManager::StoreMessage(int index, string message){
 	}
 	if(status.empty() || status[index] != in_use ){
 		throw invalid_state_exception("Attempting to store into a buffer that is not reserved");
+	}
+	if(strlen(message.c_str())!= message.size()){
+		throw std::runtime_error("[StoreMessage(" + std::to_string(index) + ", <corrupted message>)]: message has null bytes prior to string terminus.");
 	}
 	buffer[index] = std::make_shared<string>(message);
 	status[index] = storing;

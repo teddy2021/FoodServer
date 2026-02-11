@@ -37,6 +37,6 @@ add_library(mariadbcpp STATIC IMPORTED)
 set_property(TARGET mariadbcpp PROPERTY IMPORTED_LOCATION "/usr/lib/libmariadbcpp.so")
 
 find_package(Catch2 3 REQUIRED)
-target_link_libraries(tests PRIVATE Catch2::Catch2WithMain mariadbcpp)
-target_link_libraries(server mariadbcpp)
+target_link_libraries(tests PRIVATE Catch2::Catch2WithMain mariadbcpp boost_filesystem)
+target_link_libraries(server mariadbcpp boost_filesystem)
 

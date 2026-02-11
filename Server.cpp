@@ -305,7 +305,7 @@ void Server::AddToGroceryList(vector<pair<string, float>> groceriesAndMinimums){
 	for(int i = 0; i < groceriesAndMinimums.size(); i += 1){
 		string item = groceriesAndMinimums[i].first;
 		float min = groceriesAndMinimums[i].second;
-		if(groceries.contains(item)){
+		if(groceries.find(item) != groceries.end()){
 			groceries[item] += min;
 		} 
 		else {
@@ -378,10 +378,10 @@ void Server::Release(Request request){
 		if(amount == 0){
 			continue;
 		}
-		if(groceries.contains(item)	&& groceries[item] > amount){
+		if(groceries.find(item) != groceries.end() && groceries[item] > amount){
 			groceries[item] -= amount;
 		}
-		else if(groceries.contains(item) && amount <= groceries[item]){
+		else if(groceries.find(item) != groceries.end() && amount <= groceries[item]){
 			amount -= groceries[item];
 			groceries.erase(item);
 			if(amount > 0){

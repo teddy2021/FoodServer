@@ -7,6 +7,8 @@
 
 #include <stdexcept>
 #include <iostream>
+#include <string.h>
+#include <string>
 
 #include "UDPCommunicator.hpp"
 #include "Enums.hpp"
@@ -18,7 +20,13 @@ using std::cerr;
 
 UDPCommunicator::~UDPCommunicator(){
 	if(socket.is_open()) {
+		socket.cancel(error);
+		if(error){
+			cerr << "Faled to cancel async operations in ~UDPCommunicator;\n\t" << 
+				error.message() << "\n";
+		}
 		socket.close();
+		socket.release();
 	}
 	if(outgoing != nullptr && outgoing->size() > 0) {
 	   	outgoing->erase(); 
@@ -30,10 +38,16 @@ UDPCommunicator::~UDPCommunicator(){
 
 string UDPCommunicator::GetMessage(){
 	string out(*recv_buffer);
+	if(out.size() != strlen(out.c_str())){
+		throw std::runtime_error("[UDPCommunicator::GetMessage()]: String size != strlen");
+	}
 	return out;
 }
 
 void UDPCommunicator::ResizeBuffer(unsigned int size){
+	if(size > msgSize){
+		throw std::runtime_error("[UDPCommunicator::ResizeBuffer(" + std::to_string(size) = ")]: Size is greater than max allowable size (" + std::to_string(msgSize) + ").");
+	}
 	if(recv_buffer->size() < size){
 		recv_buffer->resize(size);
 	}
@@ -48,13 +62,7 @@ void UDPCommunicator::ResetBuffer(){
 }
 
 void UDPCommunicator::ResizeOutgoingBuffer(unsigned int size){
-	if(outgoing->size() < size){
-		*outgoing = recv_buffer->substr(0,size);
-	}
-	else{
-		outgoing->resize(size);
-		outgoing->shrink_to_fit();
-	}
+	outgoing->resize(size);
 }
 
 
@@ -62,11 +70,8 @@ void UDPCommunicator::HandleSend(boost::shared_ptr<std::string> message,
 		const boost::system::error_code &err,
 		std::size_t transferred){
 	if(err){
-		string first_half = message->substr(0, (message->size() / 2) - 1);
-		string second_half = message->substr((message->size() / 2), message->size() - 1);
-		Send(first_half);
-		Send(second_half);
-		throw std::runtime_error("[UDPCommunicator::HandleSend(" + *message + ",__, ___)] Failed to send message:\n\t" + err.message());
+		std::cerr << "[UDPCommunicator::HandleSend(" << *message << ",__, ___)] Failed to send message:\n\t" << err.message() << "\n";
+		return;
 	}
 	else{
 		connected = true;
@@ -77,8 +82,9 @@ void UDPCommunicator::Send(string message){
 	if(!connected){
 		throw std::runtime_error("[UDPCommunicator::Send] Unable to send without an endpoint.");
 	}
-	ResizeOutgoingBuffer(message.size());
+	ResizeOutgoingBuffer(message.size() + 1);
 	*outgoing = message;
+	outgoing->shrink_to_fit();
 	socket.async_send_to(buffer(*outgoing),
 			remote_end,
 			boost::bind(&UDPCommunicator::HandleSend,
@@ -183,4 +189,8 @@ unsigned short UDPCommunicator::remote_port(){
 
 protocol_type UDPCommunicator::GetProtocol(){
 	return udp;
+}
+
+unsigned int UDPCommunicator::maxSize(){
+	return msgSize;
 }

@@ -19,101 +19,109 @@ using boost::asio::buffer;
 using std::cerr;
 using boost::asio::ip::tcp;
 
-TCPCommunicator::~TCPCommunicator(){
-	if(socket.is_open()){  
-		socket.close();
+void TCPCommunicator::validateSocketState() const {
+	if(!socket){
+		throw std::runtime_error("[TCPCommunicator::validateSocketState] Socket is null");
 	}
-	if(acceptor.is_open()){  
-		acceptor.close();
-	}
-	if(recv_buffer != nullptr &&recv_buffer->size() > 0){  
-		recv_buffer->erase();
-	}
-	if(outgoing != nullptr && outgoing->size() > 0){  	
-		outgoing->erase();
+	if(!socket->is_open()){
+		throw std::runtime_error("[TCPCommunicator::validateSocketState] Socket is not open");
 	}
 }
 
-void TCPCommunicator::HandleSend(shared_ptr<string> message,
-		const boost::system::error_code &err,
-		std::size_t transferred){
-	if(err){
-		cerr << "[TCPCommunicator::HandleSend] An error occurred:\n\t" << err.message() << "\n";
-		string first_half = message->substr(0, (message->size() / 2) - 1);
-		string second_half = message->substr((message->size() / 2), message->size() - 1);
-		Send(first_half);
-		Send(second_half);
-		throw std::runtime_error("[TCPCommunicator::HandleSend(" + *message + ",__, ___)] Failed to send message:\n\t" + err.message());
+TCPCommunicator::~TCPCommunicator(){
+	boost::system::error_code err;
+	
+	// Clean up socket first
+	if(socket && socket->is_open()){  
+		socket->shutdown(boost::asio::ip::tcp::socket::shutdown_both, err);
+		socket->close(err);
 	}
-	else{
-		connected = true;
+	
+	// Clean up acceptor
+	if(acceptor && acceptor->is_open()){  
+		acceptor->close(err);
+	}
+	
+	// Clean up buffers
+	if(recv_buffer){  
+		recv_buffer->clear();
+	}
+	if(outgoing){  	
 		outgoing->clear();
 	}
 }
 
 
+
+
 void TCPCommunicator::Send(string message){
+	validateSocketState();
 	if(!connected){
 		throw std::runtime_error( "[TCPCommunicator::Send(" + message + ")]: Not connected to a peer.\n");
 	}
+	boost::system::error_code err;
 	outgoing->resize(message.size() + 2);
 	*outgoing = message;
-	socket.async_send(buffer(*outgoing),
-			boost::bind(&TCPCommunicator::HandleSend,
-				this,
-				outgoing,
-				boost::asio::placeholders::error,
-				boost::asio::placeholders::bytes_transferred));
+	size_t transferred = socket->send(buffer(*outgoing), 0, err);
+	if(err){
+		cerr << "[TCPCommunicator::Send] An error occurred:\n\t" << err.message() << "\n";
+		throw std::runtime_error("[TCPCommunicator::Send(" + message + ")] Failed to send message:\n\t" + err.message());
+	}
+	else{
+		outgoing->clear();
+	}
 }
 
 
 void TCPCommunicator::Reply(string message){
+	validateSocketState();
 	if(!connected){
 		throw std::runtime_error("[TCPCommunicator::Reply(" + message + ")] Not connected to a peer.");
 	}
+	boost::system::error_code err;
 	outgoing->clear();
 	outgoing->resize(message.size());
 	*outgoing = message;
-	boost::asio::async_write(socket, 
-			buffer(*outgoing),	
-			boost::bind(&TCPCommunicator::HandleSend, 
-				this,
-				outgoing,
-				boost::asio::placeholders::error,
-				boost::asio::placeholders::bytes_transferred));
-
-}
-
-
-void TCPCommunicator::HandleAccept(boost::system::error_code err){
+	size_t transferred = boost::asio::write(*socket, buffer(*outgoing), err);
 	if(err){
-		cerr << "[TCPCommunicator::HandleAccept] An error occurred:\n\t" << err.message() << "\n";
+		cerr << "[TCPCommunicator::Reply] An error occurred:\n\t" << err.message() << "\n";
+		throw std::runtime_error("[TCPCommunicator::Reply(" + message + ")] Failed to send message:\n\t" + err.message());
 	}
 	else{
-		connected = true;
+		outgoing->clear();
 	}
 }
+
+
+
 
 
 void TCPCommunicator::Accept(){
-	if(!acceptor.is_open()){
-		acceptor.open(tcp::v4());
+	boost::system::error_code err;
+	
+	// Only accept if we're in server mode and have an acceptor
+	if(!is_server_mode || !acceptor){
+		throw std::runtime_error("[TCPCommunicator::Accept] Not configured as server");
 	}
-	socket = tcp::socket(socket.get_executor());
-	acceptor.async_accept(socket,
-		   	boost::bind(
-				&TCPCommunicator::HandleAccept,
-			   	this, 
-				boost::asio::placeholders::error));
-//	res = acceptor.accept(socket, error);
-//	if(!error && !res){
-//		remote_end = socket.remote_endpoint();
-//		std::cout << "[TCPCommunicator::Accept()] connected to " << remote_end.address().to_string() << ":" << remote_end.port() << "\n";
-//		connected = true;
-//	}
-//	else{
-//		cerr << "[TCPCommunicator::Accept] Failed to connect.\n\t" << error.message() << "\n"; 
-//	}
+	
+	// Ensure acceptor is ready
+	if(!acceptor->is_open()){
+		acceptor->open(tcp::v4(), err);
+		if(err){
+			throw std::runtime_error("[TCPCommunicator::Accept] Failed to open acceptor:\n\t" + err.message());
+		}
+	}
+	
+	// Accept the connection
+	acceptor->accept(*socket, err);
+	if(err){
+		cerr << "[TCPCommunicator::Accept] An error occurred:\n\t" << err.message() << "\n";
+		throw std::runtime_error("[TCPCommunicator::Accept] Failed to accept connection:\n\t" + err.message());
+	}
+	else{
+		remote_end = socket->remote_endpoint();
+		connected = true;
+	}
 }
 
 
@@ -128,29 +136,25 @@ void TCPCommunicator::ResetBuffer(){
 }
 
 
-void TCPCommunicator::StoreMessage(const boost::system::error_code &err,
-		std::size_t transferred){
-	if(!err){
-		ResizeBuffer(transferred);
-	}
-	if(err){
-		throw std::runtime_error("[TCPCommunicator::StoreMessage] an error occurred while recieving the message.\n\t" + err.message());
-	}
-	if(socket.available() > 0){
-		Receive();
-	}
-}
+
 
 
 void TCPCommunicator::Receive(){
 	if(!connected){
 		Accept();
 	}
-	socket.async_read_some(buffer(*recv_buffer),
-			boost::bind(&TCPCommunicator::StoreMessage,
-				this,
-				boost::asio::placeholders::error,
-				boost::asio::placeholders::bytes_transferred));
+	if(!socket->is_open()){
+		throw std::runtime_error("[TCPCommunicator::Receive()]: Socket is not open.");
+	}
+	boost::system::error_code err;
+	size_t transferred = socket->read_some(buffer(*recv_buffer), err);
+	if(err){
+		throw std::runtime_error("[TCPCommunicator::Receive] an error occurred while receiving the message.\n\t" + err.message());
+	}
+	ResizeBuffer(transferred);
+	if(socket->available() > 0){
+		Receive();
+	}
 }
 
 
@@ -161,12 +165,15 @@ string TCPCommunicator::GetMessage(){
 }
 
 string TCPCommunicator::remote_address(){
-	return socket.remote_endpoint().address().to_string();
+	if(!socket->is_open()){
+		throw std::runtime_error("[TCPCommunicator::remote_address()]: Socket is not open.");
+	}
+	return socket->remote_endpoint().address().to_string();
 }
 
 
 unsigned short TCPCommunicator::remote_port(){
-	return static_cast<unsigned short>(socket.remote_endpoint().port());
+	return static_cast<unsigned short>(socket->remote_endpoint().port());
 }
 
 
@@ -175,14 +182,7 @@ protocol_type TCPCommunicator::GetProtocol(){
 }
 
 
-void TCPCommunicator::HandleConnect(boost::system::error_code err, 
-		tcp::endpoint ep){
-	if(err){
-		cerr << "[TCPCommunicator::HandleConnect] An error occurred.\n\t" << err.message() << "\n";
-	}else{
-		connected = true;
-	}
-}
+
 
 
 void TCPCommunicator::Connect(boost::asio::io_context & context, string address){
@@ -191,20 +191,18 @@ void TCPCommunicator::Connect(boost::asio::io_context & context, string address)
 	if(res.empty()){
 		throw std::runtime_error("Failed to resolve any peers on " + address + ":0xBEEF");
 	}
-	if(socket.is_open()){
-		socket.close();
+	if(socket->is_open()){
+		socket->close();
 	}
-	boost::asio::async_connect(socket, res, boost::bind(
-				&TCPCommunicator::HandleConnect,
-				this,
-				boost::asio::placeholders::error,
-				boost::asio::placeholders::endpoint
-				));
-//	for(auto it = res.begin(); it != res.end(); it ++){
-//		if(it->endpoint().address().is_v4()){
-//			socket.connect(it->endpoint());
-//		}
-//	}
+	boost::system::error_code err;
+	boost::asio::connect(*socket, res, err);
+	if(err){
+		cerr << "[TCPCommunicator::Connect] An error occurred.\n\t" << err.message() << "\n";
+		socket->close();
+		throw std::runtime_error("[TCPCommunicator::Connect] Failed to connect to " + address + ":0xBEEF\n\t" + err.message());
+	}else{
+		connected = true;
+	}
 }
 
 
@@ -215,28 +213,15 @@ void TCPCommunicator::Connect(boost::asio::io_context &context, std::string addr
 		throw std::runtime_error("Failed to resolve any peers on " + address + ":" + std::to_string(port));
 	}
 	
-	boost::asio::async_connect(socket, res, boost::bind(
-						&TCPCommunicator::HandleConnect,
-						this,
-						boost::asio::placeholders::error,
-						boost::asio::placeholders::endpoint
-						));
-
-//	for(auto it = res.begin(); it != res.end(); it ++){
-//		if(it->endpoint().address().is_v4() && it->endpoint().port() == port){
-//			boost::system::error_code err;
-//			std::cout << "Trying to connect to " << it->endpoint().address().to_string() << ":" << it->endpoint().port() << "\n";
-//			socket.connect(it->endpoint(), err);
-//			if(err){
-//				std::cout << "\tFailure. " << err.message() << "\n";
-//			}
-//			else{
-//				std::cout << "\tSuccess.\n";
-//				break;
-//			}
-//			
-//		}
-//	}
+	boost::system::error_code err;
+	boost::asio::connect(*socket, res, err);
+	if(err){
+		cerr << "[TCPCommunicator::Connect] An error occurred.\n\t" << err.message() << "\n";
+		socket->close();
+		throw std::runtime_error("[TCPCommunicator::Connect] Failed to connect to " + address + ":" + std::to_string(port) + "\n\t" + err.message());
+	}else{
+		connected = true;
+	}
 }
 
 

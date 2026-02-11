@@ -2,22 +2,20 @@
 #pragma once
 #include "NetCommunicator.hpp"
 #include <boost/date_time/time_defs.hpp>
+#include <memory>
 
 class TCPCommunicator : public Communicator, std::enable_shared_from_this<TCPCommunicator>{
 
 	private:
-		boost::asio::ip::tcp::socket socket;
-		boost::asio::ip::tcp::acceptor acceptor;
+		std::unique_ptr<boost::asio::ip::tcp::socket> socket;
+		std::unique_ptr<boost::asio::ip::tcp::acceptor> acceptor;
 		boost::asio::ip::tcp::endpoint remote_end;
-
-		void HandleSend(boost::shared_ptr<std::string> message,
-				const boost::system::error_code &err,
-				std::size_t transferred) override;
-		void StoreMessage(const boost::system::error_code &err,
-				std::size_t transferred) override;
-		void HandleAccept(boost::system::error_code err);
-		void HandleConnect(boost::system::error_code err,
-				boost::asio::ip::tcp::endpoint ep);
+		boost::asio::io_context* io_context_ref;
+		bool is_server_mode;
+		
+		void initializeSocket(boost::asio::io_context& con);
+		void initializeAcceptor(boost::asio::io_context& con, unsigned short port);
+		void validateSocketState() const;
 		
 	public:
 		
@@ -27,29 +25,23 @@ class TCPCommunicator : public Communicator, std::enable_shared_from_this<TCPCom
 			return std::shared_ptr<TCPCommunicator>(new TCPCommunicator(io_context));
 		}
 
+		bool isServerMode() const { return is_server_mode; }
+		bool isConnected() const { return connected && socket && socket->is_open(); }
+
 		void Accept();
 		
 		void Connect(boost::asio::io_context & context, std::string address) override;
 		void Connect(boost::asio::io_context & context, std::string address, unsigned int port) override;
 		
 		
-		TCPCommunicator():
-			acceptor(boost::asio::io_context().get_executor()),
-			socket(boost::asio::io_context().get_executor()){
-				recv_buffer = std::make_unique<std::string>(std::string("0", 10));
-				recv_buffer->reserve(10);
-				outgoing = boost::make_shared<std::string>(std::string("",1024));
-		};
+		TCPCommunicator() = delete;
 
 		TCPCommunicator(boost::asio::io_context & con):
-			socket(con), 
-			remote_end(boost::asio::ip::tcp::v4(),
-					0xBEEF),
-
-			acceptor(con, 
-					boost::asio::ip::tcp::endpoint(
-						boost::asio::ip::tcp::v4(),
-					   	0xBEEF))
+			socket(std::make_unique<boost::asio::ip::tcp::socket>(con)), 
+			remote_end(boost::asio::ip::tcp::v4(), 0xBEEF),
+			acceptor(nullptr),
+			io_context_ref(&con),
+			is_server_mode(false)
 			{
 				recv_buffer = std::make_unique<std::string>(std::string("0", 10));
 				outgoing = boost::make_shared<std::string>(std::string(" ", 1024));
@@ -58,27 +50,24 @@ class TCPCommunicator : public Communicator, std::enable_shared_from_this<TCPCom
 
 
 		TCPCommunicator(boost::asio::io_context &con, unsigned short port):
-			socket(con),
-			remote_end(boost::asio::ip::tcp::v4(),
-					port),
-			acceptor(con,
-				   	boost::asio::ip::tcp::endpoint(
-						boost::asio::ip::tcp::v4(),
-					   	port))
+			socket(std::make_unique<boost::asio::ip::tcp::socket>(con)),
+			remote_end(boost::asio::ip::tcp::v4(), port),
+			acceptor(std::make_unique<boost::asio::ip::tcp::acceptor>(con, 
+				boost::asio::ip::tcp::endpoint(boost::asio::ip::tcp::v4(), port))),
+			io_context_ref(&con),
+			is_server_mode(true)
 			{
 				recv_buffer = std::make_unique<std::string>(std::string("0", 10));
 				outgoing = boost::make_shared<std::string>(std::string(" ", 1024));
 			}
 
-
-		TCPCommunicator(boost::asio::io_context &con, std::string address,  unsigned short port):
-			socket(con),
-			remote_end(boost::asio::ip::tcp::v4(),
-					port),
-			acceptor(con,
-				   	boost::asio::ip::tcp::endpoint(
-						boost::asio::ip::make_address(address),
-					   	port))
+	TCPCommunicator(boost::asio::io_context &con, std::string address,  unsigned short port):
+			socket(std::make_unique<boost::asio::ip::tcp::socket>(con)),
+			remote_end(boost::asio::ip::tcp::v4(), port),
+			acceptor(std::make_unique<boost::asio::ip::tcp::acceptor>(con,
+				boost::asio::ip::tcp::endpoint(boost::asio::ip::make_address(address), port))),
+			io_context_ref(&con),
+			is_server_mode(true)
 			{
 				recv_buffer = std::make_unique<std::string>(std::string("0", 10));
 				outgoing = boost::make_shared<std::string>(std::string("", 1024));
@@ -119,5 +108,6 @@ class TCPCommunicator : public Communicator, std::enable_shared_from_this<TCPCom
 		unsigned short remote_port() override;
 		protocol_type GetProtocol() override;
 
+		unsigned int maxSize() override{ return 0; };
 };
 

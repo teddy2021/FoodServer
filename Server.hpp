@@ -1,6 +1,5 @@
 
 #include "NetMessenger.hpp"
-#include "NetMessenger.hpp"
 #include "IDB.hpp"
 #include "Enums.hpp"
 
@@ -130,7 +129,7 @@ class Server{
 
 	public:
 
-Server(){};
+		Server(){};
 		Server(protocol_type type);
 		Server(protocol_type type, unsigned short port);
 		Server(NetMessenger net);

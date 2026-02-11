@@ -8,10 +8,13 @@
 #include "../Enums.hpp"
 
 #include <boost/asio/io_context.hpp>
+#include <catch2/catch_message.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
 #include <catch2/generators/catch_generators_random.hpp>
 #include <catch2/generators/catch_generators_adapters.hpp>
+#include <locale>
+#include <memory>
 #include <string>
 #include <random>
 #include <iostream>
@@ -19,20 +22,45 @@
 #include <thread>
 #include <bits/stdc++.h>
 #include <boost/algorithm/string/trim.hpp>
+#include <codecvt>
 
 using boost::algorithm::trim;
 using std::string;
 using std::u32string;
 using std::vector;
 
+struct NetMessengerFixture {
+	std::vector<std::unique_ptr<NetMessenger>> messengers;
+	std::vector<Recipient> recipients;
+	unsigned short base_port = 38080;
+	
+	~NetMessengerFixture() = default;
+	
+	NetMessenger& createMessenger(protocol_type type, unsigned short port_offset = 0) {
+		messengers.emplace_back(std::make_unique<NetMessenger>(type, base_port + port_offset));
+		return *messengers.back();
+	}
+	
+	Recipient createRecipient(unsigned short port_offset = 0) {
+		Recipient rec = std::make_shared<recipient>("localhost", base_port + port_offset);
+		recipients.push_back(rec);
+		return rec;
+	}
+};
+
 bool stringEqual(u32string str1, u32string str2){
 	u32string one(str1);
 	u32string two(str2);
 	trim(one);
 	trim(two);
-	bool equal = false;
-	for(int i = 0; i < std::min(str1.size(), str2.size()); i += 1){
-		equal = (one[i] == two[i]);
+	if(one.size() != two.size()){
+		return false;
+	}
+	bool equal = true;
+	int i = 0;
+	while(equal && i < one.size()){
+		equal = equal && (one[i] == two[i]);
+		i += 1;
 	}
 	return equal;
 }
@@ -42,12 +70,14 @@ bool stringEqual(string str1, string str2){
 	string two(str2);
 	trim(one);
 	trim(two);
-	if(one.size() == 0 && two.size() == 0){
-		return true;
+	if(one.size() != two.size()){
+		return false;
 	}
-	bool equal = false;
-	for(int i = 0; i < std::min(str1.size(), str2.size()); i += 1){
-		equal = (one[i] == two[i]);
+	bool equal = true;
+	int i = 0;
+	while(equal && i < one.size()){
+		equal = equal && (one[i] == two[i]);
+		i += 1;
 	}
 	return equal;
 }
@@ -55,54 +85,36 @@ bool stringEqual(string str1, string str2){
 TEST_CASE("Testing Constructors"){
 	boost::asio::io_context con;
 	SECTION("Testing UDPCommunicator","[UDP][Constructor]"){
-		UDPCommunicator com1;
-		UDPCommunicator *com2;
-		UDPCommunicator *com3;
 		con.run();
 
-		CHECK_NOTHROW(com1 = UDPCommunicator(con));
+		CHECK_NOTHROW(std::make_unique<UDPCommunicator>(con, static_cast<unsigned short>(8081)));
 
-		CHECK_NOTHROW(com1 = UDPCommunicator(con, 8080));
-		CHECK_NOTHROW(com2 = new UDPCommunicator(con, 8081));
-		delete com2;
-
-		CHECK_NOTHROW(com1 = UDPCommunicator(con, "127.0.0.1", 8082));
-		CHECK_NOTHROW(com2 = new UDPCommunicator(con, "127.0.0.1", 8083));
-		delete com2;
+		CHECK_NOTHROW(std::make_unique<UDPCommunicator>(con, "127.0.0.1", 8083));
 
 		std::cout << "Moving on from nothrows to throws.\n";
-		com3 = new UDPCommunicator(con);
-		com2 = nullptr;
-		CHECK_THROWS(com2 = new UDPCommunicator(con));
-		CHECK_THROWS(com2 = new UDPCommunicator(con, 0xBEEF));
-		CHECK_THROWS(com2 = new UDPCommunicator(con, "0.0.0.0", 0xBEEF));
-		CHECK_THROWS(com2 = new UDPCommunicator(con, "localhost", 8080));
-		delete(com2);
-		delete(com3);
-		com2 = nullptr;
-		com3 = nullptr;
+		auto com3 = std::make_unique<UDPCommunicator>(con);
+		CHECK_THROWS((std::make_unique<UDPCommunicator>(con)));
+		CHECK_THROWS((std::make_unique<UDPCommunicator>(con, static_cast<unsigned short>(0xBEEF))));
+		CHECK_THROWS((std::make_unique<UDPCommunicator>(con, "0.0.0.0", 0xBEEF)));
+		CHECK_THROWS((std::make_unique<UDPCommunicator>(con, "localhost", 8080)));
 	}
 
 	SECTION("Testing TCPCommunicator","[TCP][Constructor]"){
-		TCPCommunicator com1;
-		TCPCommunicator *com2;
+		TCPCommunicator com1(con);
 
 		CHECK_NOTHROW(com1 = TCPCommunicator(con));
 
 		CHECK_NOTHROW(com1 = TCPCommunicator(con, 8080));
-		CHECK_NOTHROW(com2 = new TCPCommunicator(con, 8081));
-		delete(com2);
+		CHECK_NOTHROW(std::make_unique<TCPCommunicator>(con, 8081));
 
 		CHECK_NOTHROW(com1 = TCPCommunicator(con, "127.0.0.1", 8082));
-		CHECK_NOTHROW(com2 = new TCPCommunicator(con, "127.0.0.1", 8083));
-		delete(com2);
-
+		CHECK_NOTHROW(std::make_unique<TCPCommunicator>(con, "127.0.0.1", 8083));
 	}
 
 	SECTION("Testing DBConnector", "[DB][Construtor]"){
 
 		DBConnector db;
-		CHECK_NOTHROW(db = DBConnector("jdbc:mariadb://localhost:3306/foodservertest") );
+		CHECK_NOTHROW(db = DBConnector("jdbc:mariadb://localhost:3306/FoodServerTest") );
 		CHECK_THROWS(db = DBConnector("hello"));
 	}
 
@@ -112,18 +124,10 @@ TEST_CASE("Testing Constructors"){
 	}
 
 	SECTION("Testing FileManager", "[FileManager][Constructor]"){
-		FileManager * f;
-		CHECK_NOTHROW(f = new FileManager("../test_src/test.txt"));
-		delete f;
-		f = nullptr;
-		CHECK_THROWS(f = new FileManager("astd"));
-		CHECK_NOTHROW(f = new FileManager("../test_src/test.txt"));
-		FileManager * f2;
-		CHECK_NOTHROW(f2 = new FileManager(*f));
-		delete f;
-		delete f2;
-		f = nullptr;
-		f2 = nullptr;
+		CHECK_NOTHROW(std::make_unique<FileManager>("test_src/test.txt"));
+		CHECK_THROWS((std::make_unique<FileManager>("astd")));
+		CHECK_NOTHROW(std::make_unique<FileManager>("test_src/test.txt"));
+		auto f2 = std::make_unique<FileManager>("test_src/test.txt");
 	}
 
 	SECTION("Testing NetMessenger", "[NetMessenger][Construtor]"){
@@ -135,44 +139,35 @@ TEST_CASE("Testing Constructors"){
 		CHECK_NOTHROW(nm = NetMessenger( udp, "0.0.0.0", 8082) );
 		CHECK_NOTHROW(nm = NetMessenger(tcp, "0.0.0.0", 8083));
 		CHECK_NOTHROW( nm = NetMessenger() );
-		NetMessenger * nm2;
-		CHECK_NOTHROW(nm2 = new NetMessenger(udp));
+		CHECK_NOTHROW(std::make_unique<NetMessenger>(udp));
 		CHECK_THROWS(nm = NetMessenger(udp));
-		delete(nm2);
 
-		CHECK_NOTHROW( nm2 = new NetMessenger(tcp) );
+		CHECK_NOTHROW(std::make_unique<NetMessenger>(tcp));
 		CHECK_THROWS(nm = NetMessenger(tcp));
-		delete(nm2);
 
-		CHECK_NOTHROW( nm2 = new NetMessenger(udp) );
+		CHECK_NOTHROW(std::make_unique<NetMessenger>(udp));
 		CHECK_THROWS(nm = NetMessenger(udp, 0xDEAD));
 		CHECK_THROWS(nm = NetMessenger(udp, "0.0.0.0", 0xDEAD));
 
 		CHECK_THROWS(nm = NetMessenger(udp, "hello", 2021));
 		CHECK_THROWS(nm = NetMessenger(tcp, "hello", 2021));
-		delete(nm2);
 	}
 
 	SECTION("Testing Server", "[Server],[Construtor]"){
 		Server s;
 		DBConnector db;
-		NetMessenger *udp_c = new NetMessenger(udp, 8080);
-		NetMessenger *tcp_c = new NetMessenger(tcp, 8080);
+		auto udp_c = std::make_unique<NetMessenger>(udp, 8080);
+		auto tcp_c = std::make_unique<NetMessenger>(tcp, 8080);
 		CHECK_NOTHROW(s = Server());
 		CHECK_NOTHROW(s = Server());
 		CHECK_NOTHROW(s = Server(*udp_c));
 		CHECK_NOTHROW(s = Server(*tcp_c));
 
-		Server *s2;
-		CHECK_NOTHROW(s2 = new Server(*udp_c));
+		CHECK_NOTHROW(std::make_unique<Server>(*udp_c));
 		CHECK_NOTHROW(s = Server(*udp_c));
 
-		CHECK_NOTHROW(s2 = new Server(*tcp_c));
+		CHECK_NOTHROW(std::make_unique<Server>(*tcp_c));
 		CHECK_NOTHROW(s = Server(*tcp_c));
-		delete s2;
-		delete udp_c;
-		delete tcp_c;
-
 	}
 
 }
@@ -181,8 +176,8 @@ TEST_CASE("Testing connection establishment"){
 	SECTION("Testing UDPCommunicator", "[UDP][connect]"){
 		boost::asio::io_context con;
 		con.run();
-		UDPCommunicator comm1(con, 8080);
-		UDPCommunicator comm2(con, 8081);
+		UDPCommunicator comm1(con, static_cast<unsigned short>(8080));
+		UDPCommunicator comm2(con, static_cast<unsigned short>(8081));
 
 		CHECK_NOTHROW(comm1.Connect(con, "localhost", 8081));
 		CHECK(comm1.remote_address() == "127.0.0.1");
@@ -196,8 +191,8 @@ TEST_CASE("Testing connection establishment"){
 
 	SECTION("Testing TCPCommunicator", "[TCP][connect]"){
 		boost::asio::io_context con1, con2;
-		TCPCommunicator *comm1 = new TCPCommunicator(con1);
-		TCPCommunicator *comm2 = new TCPCommunicator(con2, 8081);
+		auto comm1 = std::make_unique<TCPCommunicator>(con1);
+		auto comm2 = std::make_unique<TCPCommunicator>(con2, 8081);
 
 		CHECK_NOTHROW(comm1->Connect(con1, "localhost", 8081));
 		CHECK_NOTHROW(comm2->Accept());
@@ -209,16 +204,14 @@ TEST_CASE("Testing connection establishment"){
 		t1.join();
 		CHECK(comm1->remote_address() == "127.0.0.1");
 		CHECK(comm1->remote_port() == 8081);
-		delete comm1;
-		delete comm2;
 	}
 }
 
 TEST_CASE("Testing UDPCommunicator", "[UDP]"){
 	boost::asio::io_context con;
 	SECTION("UDP basic send/receive", "[UDP][SEND][RECV]"){
-		UDPCommunicator * com1 = new UDPCommunicator(con, 8080);
-		UDPCommunicator * com2 = new UDPCommunicator(con, 8081);
+		auto com1 = std::make_unique<UDPCommunicator>(con, static_cast<unsigned short>(8080));
+		auto com2 = std::make_unique<UDPCommunicator>(con, static_cast<unsigned short>(8081));
 
 		com1->Connect(con, "localhost", 8081);
 		com2->Connect(con, "localhost", 8080);
@@ -233,6 +226,7 @@ TEST_CASE("Testing UDPCommunicator", "[UDP]"){
 		CHECK_NOTHROW(com2->Receive());
 		CHECK_NOTHROW(msg2 = com2->GetMessage());
 		CHECK(stringEqual(msg, msg2) == true);
+		CAPTURE(msg, msg2);
 
 		msg = "fdsa";
 		CHECK_NOTHROW(com2->Send(msg));
@@ -240,8 +234,9 @@ TEST_CASE("Testing UDPCommunicator", "[UDP]"){
 		CHECK_NOTHROW(msg2 = com1->GetMessage());
 		con.run();
 		CHECK(stringEqual(msg, msg2));
+		CAPTURE(msg, msg2);
 
-		UDPCommunicator * com3 = new UDPCommunicator(con);
+		auto com3 = std::make_unique<UDPCommunicator>(con);
 		com3->Connect(con, "localhost", 2020);
 		msg = "hello";
 		CHECK_NOTHROW(com3->Send(msg));
@@ -250,18 +245,14 @@ TEST_CASE("Testing UDPCommunicator", "[UDP]"){
 		msg1 = com1->GetMessage();
 		msg2 = com2->GetMessage();
 		CHECK(stringEqual(msg1,msg) != true);
+		CAPTURE(msg1, msg);
 		CHECK(stringEqual(msg2, msg)!= true);
-
-		delete(com1);
-		delete(com2);
-		com1 = nullptr;
-		com2 = nullptr;
-
+		CAPTURE(msg2, msg);
 	}
 
 	SECTION("UDP basic reply", "[UDP][REPLY]"){
-		UDPCommunicator * com1 = new UDPCommunicator(con, 8080);
-		UDPCommunicator * com2 = new UDPCommunicator(con, 8081);
+		auto com1 = std::make_unique<UDPCommunicator>(con, static_cast<unsigned short>(8080));
+		auto com2 = std::make_unique<UDPCommunicator>(con, static_cast<unsigned short>(8081));
 
 		com1->Connect(con, "localhost", 8081);
 
@@ -270,11 +261,13 @@ TEST_CASE("Testing UDPCommunicator", "[UDP]"){
 		com1->Send("1234");
 		com2->Receive();
 
+		CAPTURE(msg);
 		msg = com2->GetMessage();
 		std::reverse(msg.begin(), msg.end());
 		CHECK_NOTHROW(com2->Reply(msg));
 		com1->Receive();
 		string msg2 = com1->GetMessage();
+		CAPTURE(msg2);
 		CHECK(msg2 == msg);
 		msg.erase();
 		msg2.erase();
@@ -284,11 +277,13 @@ TEST_CASE("Testing UDPCommunicator", "[UDP]"){
 		com2->Receive();
 		msg = com2->GetMessage();
 		CHECK(stringEqual(msg,msg2) == true);
+		CAPTURE(msg, msg2);
 		msg.erase();
 		msg2.erase();
 
 		string msg1 = "";
-		UDPCommunicator * com3 = new UDPCommunicator(con, 8083);
+		CAPTURE(msg1);
+		auto com3 = std::make_unique<UDPCommunicator>(con, static_cast<unsigned short>(8083));
 
 		msg = "dvorak";
 		com3->Connect(con, "localhost", 8080);
@@ -298,7 +293,9 @@ TEST_CASE("Testing UDPCommunicator", "[UDP]"){
 		msg1 = com1->GetMessage();
 		msg2 = com2->GetMessage();
 		CHECK(stringEqual(msg,msg1) == true);
+		CAPTURE(msg, msg1);
 		CHECK(stringEqual(msg, msg2) != true);
+		CAPTURE(msg, msg2);
 		msg.erase();
 		msg1.erase();
 		msg2.erase();
@@ -310,16 +307,9 @@ TEST_CASE("Testing UDPCommunicator", "[UDP]"){
 		com3->Receive();
 		msg2 = com3->GetMessage();
 		CHECK(stringEqual(msg,msg1) != true);
+		CAPTURE(msg, msg1);
 		CHECK(stringEqual(msg, msg2) == true);
-
-
-		delete(com1);
-		com1 = nullptr;
-		delete(com2);
-		com2 = nullptr;
-		delete(com3);
-		com3 = nullptr;
-
+		CAPTURE(msg, msg2);
 	}
 
 	SECTION("UDP multiple agents", "[UDP][SEND][RECV][REPLY][MULTI]"){
@@ -332,13 +322,14 @@ TEST_CASE("Testing UDPCommunicator", "[UDP]"){
 			string str(1,i);
 			alphabet.push_back(str);
 		}
-		vector<UDPCommunicator *> agents;
+		vector<std::unique_ptr<UDPCommunicator>> agents;
+		agents.reserve(SOCK_MAX);
 		std::random_device rand_dev;
 		std::mt19937 eng(rand_dev());
 		std::uniform_int_distribution<> dist(0, alphabet.size() - 1);
 		for(int i = 0; i < SOCK_MAX; i += 1){
 			INFO("Creating socket number " << i);
-			agents[i] = new UDPCommunicator(con, 8080 + i);
+			agents.emplace_back(std::make_unique<UDPCommunicator>(con, static_cast<unsigned short>(8080 + i)));
 		}
 		for(int i = 0; i < SOCK_MAX; i += 2){
 			INFO("Connecting " << i << "->" << (i+1));
@@ -346,9 +337,39 @@ TEST_CASE("Testing UDPCommunicator", "[UDP]"){
 			INFO("Connecting " << (i + 1) << "->" << i);
 			agents[i+1]->Connect(con, "localhost", 8080 + i);
 		}
-
 		string msg1;
 		string msg2;
+		for(int i = 0; i < 800; i += 2){
+			size_t len1 = static_cast<size_t>(dist(eng)), 
+				   len2 = static_cast<size_t>(dist(eng));
+
+			msg1.reserve(len1);
+			msg2.reserve(len2);
+			for(size_t j = 0; j < len1; j += 1){
+				msg1 += alphabet[dist(eng)];
+			}
+			for(size_t j = 0; j < len2; j += 1){
+				msg2 += alphabet[dist(eng)];
+			}
+
+			UDPCommunicator * agent1 = agents[i%SOCK_MAX].get();
+			UDPCommunicator * agent2 = agents[(i+1)% SOCK_MAX].get();
+			agent1->Send(msg1);
+			agent2->Receive();
+			msg2 = agent2->GetMessage();
+			INFO("msg1: " + msg1 + "\tmsg2: " + msg2);
+			CHECK(stringEqual(msg1, msg2));
+			
+
+			agent2->Send(msg2);
+			agent1->Receive();
+			msg1 = agent1->GetMessage();
+			INFO("msg1: " + msg1 + "\tmsg2: " + msg2);
+			CHECK(stringEqual(msg1, msg2));
+			msg1.erase();
+			msg2.erase();
+		}
+
 		for(int i = 0; i < 800; i += 2){
 			size_t len1 = static_cast<size_t>(dist(eng)), 
 				   len2 = static_cast<size_t>(dist(eng));
@@ -362,24 +383,23 @@ TEST_CASE("Testing UDPCommunicator", "[UDP]"){
 				msg2 += alphabet[dist(eng)];
 			}
 
-			UDPCommunicator * agent1 = agents[i%20];
-			UDPCommunicator * agent2 = agents[(i+1)% 20];
+			UDPCommunicator * agent1 = agents[i%SOCK_MAX].get();
+			UDPCommunicator * agent2 = agents[(i+1)% SOCK_MAX].get();
 			agent1->Send(msg1);
 			agent2->Receive();
 			msg2 = agent2->GetMessage();
+			INFO("msg1: " + msg1 + "\tmsg2: " + msg2);
 			CHECK(stringEqual(msg1, msg2));
 			
+		
+
 			agent2->Send(msg2);
 			agent1->Receive();
 			msg1 = agent1->GetMessage();
+			INFO("msg1: " + msg1 + "\tmsg2: " + msg2);
 			CHECK(stringEqual(msg1, msg2));
 			msg1.erase();
 			msg2.erase();
-		}
-
-		for(int i = 0; i < agents.size(); i += 1){
-			delete(agents[i]);
-			agents[i] = nullptr;
 		}
 	}
 }
@@ -388,14 +408,14 @@ TEST_CASE("Testing TCPCommunicator", "[TCP]"){
 
 	boost::asio::io_context con1, con2;
 	SECTION("TCP basic send/receive", "[TCP][SEND][RECV]"){
-		TCPCommunicator * com1 = new TCPCommunicator(con1, 8080);
-		TCPCommunicator * com2 = new TCPCommunicator(con2, 8081);
+		auto com1 = std::make_unique<TCPCommunicator>(con1, 8080);
+		auto com2 = std::make_unique<TCPCommunicator>(con2, 8081);
 
 
 		std::thread t1([](boost::asio::io_context &ctx, TCPCommunicator * com){
 				com->Connect(ctx, "localhost", 8081);
 				ctx.run();
-				}, std::ref(con2), com1);
+				}, std::ref(con2), com1.get());
 
 		com2->Accept();
 		t1.join();
@@ -403,7 +423,7 @@ TEST_CASE("Testing TCPCommunicator", "[TCP]"){
 		std::thread t2([](boost::asio::io_context &ctx, TCPCommunicator * com){
 				com->Connect(ctx, "localhost", 8081);
 				ctx.run();
-				}, std::ref(con1), com2);
+				}, std::ref(con1), com2.get());
 		com1->Accept();
 		t2.join();
 
@@ -414,6 +434,8 @@ TEST_CASE("Testing TCPCommunicator", "[TCP]"){
 
 		msg2 = com2->GetMessage();
 		CHECK(stringEqual(msg1, msg2) == true);
+		CAPTURE(msg1, msg2);
+		CAPTURE(msg1, msg2);
 
 		std::reverse(msg2.begin(), msg2.end());
 		CHECK_NOTHROW(com2->Send(msg2));
@@ -421,18 +443,13 @@ TEST_CASE("Testing TCPCommunicator", "[TCP]"){
 
 		msg1 = com1->GetMessage();
 		CHECK(stringEqual(msg1, msg2) == true);
-
-		delete(com1);
-		com1 = nullptr;
-		delete(com2);
-		com2 = nullptr;
-		
+		CAPTURE(msg1, msg2);
 	}
 
 	SECTION("TCP reply", "[TCP][REPLY]"){
 
-		TCPCommunicator * com1 = new TCPCommunicator(con1, 8080);
-		TCPCommunicator * com2 = new TCPCommunicator(con2, 8081);
+		auto com1 = std::make_unique<TCPCommunicator>(con1, 8080);
+		auto com2 = std::make_unique<TCPCommunicator>(con2, 8081);
 
 
 		com1->Connect(con1, "localhost", 8081);
@@ -463,18 +480,14 @@ TEST_CASE("Testing TCPCommunicator", "[TCP]"){
 		com1->Receive();
 		msg1 = com1->GetMessage();
 		CHECK(stringEqual(msg1, msg2) == true);
+		CAPTURE(msg1, msg2);
 
 		msg1 = "goodbye";
 		CHECK_NOTHROW(com1->Reply(msg1));
 		com2->Receive();
 		msg2 = com2->GetMessage();
 		CHECK(stringEqual(msg1, msg2));
-		
-		delete(com1);
-		com1 = nullptr;
-		delete(com2);
-		com2 = nullptr;
-
+		CAPTURE(msg1, msg2);
 	}
 
 	SECTION("TCP multiple agents", "[TCP][MULTI]"){
@@ -487,15 +500,16 @@ TEST_CASE("Testing TCPCommunicator", "[TCP]"){
 			string str(1,i);
 			alphabet.push_back(str);
 		}
-		vector<TCPCommunicator *> agents;
+		vector<std::unique_ptr<TCPCommunicator>> agents;
+		agents.reserve(20);
 		std::random_device rand_dev;
 		std::mt19937 eng(rand_dev());
 		std::uniform_int_distribution<> dist(0, alphabet.size() - 1);
 		for(int i = 0; i < 20; i += 1){
 			if(i % 2 == 0){
-				agents[i] = new TCPCommunicator(con1, 8080 + i);
+				agents.emplace_back(std::make_unique<TCPCommunicator>(con1, 8080 + i));
 			} else {
-				agents[i] = new TCPCommunicator(con2, 8080 + i);
+				agents.emplace_back(std::make_unique<TCPCommunicator>(con2, 8080 + i));
 			}
 		}
 		for(int i = 0; i < 20; i += 2){
@@ -534,31 +548,30 @@ TEST_CASE("Testing TCPCommunicator", "[TCP]"){
 				msg2 += alphabet[dist(eng)];
 			}
 
-			TCPCommunicator * agent1 = agents[i%20];
-			TCPCommunicator * agent2 = agents[(i+1)% 20];
+			TCPCommunicator * agent1 = agents[i%20].get();
+			TCPCommunicator * agent2 = agents[(i+1)% 20].get();
 			agent1->Send(msg1);
 			agent2->Receive();
 			msg2 = agent2->GetMessage();
 			CHECK(stringEqual(msg1, msg2));
+			CAPTURE(msg1, msg2);
 			
 			agent2->Send(msg2);
 			agent1->Receive();
 			msg1 = agent1->GetMessage();
 			CHECK(stringEqual(msg1, msg2));
+			CAPTURE(msg1, msg2);
 			msg1.erase();
 			msg2.erase();
 		}
 
-		for(int i = 0; i < agents.size(); i += 1){
-			delete(agents[i]);
-			agents[i] = nullptr;
-		}
+
 	}
 }
 
-TEST_CASE("Testing DBConnector"){
+TEST_CASE("Testing DBConnector", "[DB]"){
 	SECTION("DBConnector simple testing with good inputs", "[DB][SIMPLE][GOOD]"){
-		DBConnector con("jdbc:mariadb://localhost:3306/foodservertest");
+		DBConnector con("jdbc:mariadb://localhost:3306/FoodServerTest");
 		string ingredient("Thyme");
 		int grams = 5;
 		bool mass = true;
@@ -585,14 +598,17 @@ TEST_CASE("Testing DBConnector"){
 		CHECK_NOTHROW(ing_storage = con.GetIngredients(recipe));
 		CHECK(ing_storage.size() == 2);
 		CHECK(stringEqual(ing_storage[0], "Thyme") == true);
+		CAPTURE(ing_storage[0]);
 		
 		CHECK_NOTHROW(rec_storage = con.GetRecipes(ing_storage));
 		CHECK(rec_storage.size() == 1);
 		CHECK(stringEqual(recipe, rec_storage[9]));
+		CAPTURE(recipe, rec_storage[9]);
 
 		CHECK_NOTHROW(ins_storage = con.GetInstructions(rec_storage));
 		CHECK(ins_storage.size() == 1);
 		CHECK(stringEqual(instructions, ins_storage[0]));
+		CAPTURE(instructions, ins_storage[0]);
 
 		vector<float> amount = {2.};
 		CHECK_NOTHROW(con.Reserve(ing_storage, amount));
@@ -605,7 +621,7 @@ TEST_CASE("Testing DBConnector"){
 	}
 
 	SECTION("DBConnector simple testing with bad inputs", "[DB][SIMPLE][BAD]"){
-		DBConnector con("jdbc:mariadb://localhost:3306/foodservertest");
+		DBConnector con("jdbc:mariadb://localhost:3306/FoodServerTest");
 		const string good_ing("Thyme");
 		const int good_grams = 7;
 
@@ -689,7 +705,7 @@ TEST_CASE("Testing DBConnector"){
 	}
 
 	SECTION("DBConnector testing against SQL injection", "[DB][INJECTION]"){
-		DBConnector con("jdbc:mariadb://localhost:3306/foodservertest");
+		DBConnector con("jdbc:mariadb://localhost:3306/FoodServerTest");
 		string ingredient("; show tables;");
 		string recipe("; describe groceries;");
 		string instruction("; describe recipes");
@@ -747,6 +763,7 @@ TEST_CASE("Testing MessageManager", "[MM]"){
 		string stored;
 		CHECK_NOTHROW(stored = manager.GetMessageFrom(idx));
 		CHECK(stringEqual(stored, message) == true);
+		CAPTURE(stored, message);
 		
 		int idx2 = -2;
 		CHECK_NOTHROW(idx2 = manager.GetFreeBuffer());
@@ -757,114 +774,130 @@ TEST_CASE("Testing MessageManager", "[MM]"){
 		CHECK_NOTHROW(stored = manager.Pop());
 		INFO("[" << idx2 << "]'" << message2 << "' != '" << stored2 << "'");
 		CHECK(stringEqual(message2, stored2));
+		CAPTURE(message2, stored2);
 	}
 }
 
 
-TEST_CASE("Testing NetMessenger", "[NM]"){
-	SECTION("Testing basic TCP NetMessenger", "[NM][TCP]"){
-		NetMessenger *nm1 = new NetMessenger(tcp, 8080);
-		NetMessenger *nm2 = new NetMessenger(tcp, 8081);
-		NetMessenger *nm3 = new NetMessenger(tcp, 8083);
-		Recipient r1 = std::make_shared<recipient>();
-		Recipient r2 = std::make_shared<recipient>();
-
-		r1->address = "localhost";
-		r2->address = "localhost";
-		r1->port = 8080;
-		r2->port = 8081;
-
-		string msg1("Hello"), msg2, msg3;
-		CHECK_NOTHROW( nm1->SendTo(msg1, r1) );
-		CHECK_NOTHROW( nm2->Receive() );
-		CHECK_THROWS( nm3->Receive() );
-
-		CHECK_NOTHROW( msg2 = nm2->GetFirstMessage() );
-		CHECK_THROWS( msg3 = nm3->GetFirstMessage() );
-
-		CHECK(stringEqual(msg1, msg2));
-		CHECK(!stringEqual(msg1, msg3));
-		CHECK(!stringEqual(msg2, msg3));
-
-		msg2 = string("Goodbye");
-		CHECK_NOTHROW(nm2->ReplyTo(msg2, r1));
-		CHECK_NOTHROW(nm1->Receive());
-		CHECK_THROWS(nm3->Receive());
-
-		CHECK_NOTHROW(msg1 = nm1->GetFirstMessage());
-		CHECK_NOTHROW(msg3 = nm3->GetFirstMessage());
-
-		CHECK(stringEqual(msg1, msg2));
-		CHECK(!stringEqual(msg1, msg3));
-		CHECK(!stringEqual(msg2, msg3));
-
-		delete nm1;
-		delete nm2;
-		delete nm3;
-	}
-
-	SECTION("Testing basic UDP NetMessenger", "[NM][UDP]"){
-		NetMessenger *nm1 = new NetMessenger(udp, 8080);
-		NetMessenger *nm2 = new NetMessenger(udp, 8081);
-		NetMessenger *nm3 = new NetMessenger(udp, 8083);
-		Recipient r1;
-		Recipient r2;
-
-		r1->address = string("localhost");
-		r2->address = string("localhost");
-		r1->port = 8080;
-		r2->port = 8081;
-
-		string msg1("Hello"), msg2, msg3;
-		CHECK_NOTHROW( nm1->SendTo(msg1, r1) );
-		CHECK_NOTHROW( nm2->Receive() );
-		CHECK_NOTHROW( nm3->Receive() );
-
-		CHECK_NOTHROW( msg2 = nm2->GetFirstMessage() );
-		CHECK_NOTHROW( msg3 = nm3->GetFirstMessage() );
-
-		CHECK(stringEqual(msg1, msg2));
-		CHECK(!stringEqual(msg1, msg3));
-		CHECK(!stringEqual(msg2, msg3));
-
-		msg2 = string("Goodbye");
-		CHECK_NOTHROW(nm2->ReplyTo(msg2, r1));
-		CHECK_NOTHROW(nm1->Receive());
-		CHECK_NOTHROW(nm3->Receive());
-
-		CHECK_NOTHROW(msg1 = nm1->GetFirstMessage());
-		CHECK_NOTHROW(msg3 = nm3->GetFirstMessage());
-
-		CHECK(stringEqual(msg1, msg2));
-		CHECK(!stringEqual(msg1, msg3));
-		CHECK(!stringEqual(msg2, msg3));
-
-		delete nm1;
-		delete nm2;
-		delete nm3;
-	}
-
-	SECTION("Testing multiple TCP agents", "[NM][TCP][MULTI]"){
+TEST_CASE("NetMessenger basic communication", "[NM]") {
+	NetMessengerFixture fixture;
+	
+	SECTION("TCP successful message delivery") {
+		auto& sender = fixture.createMessenger(tcp, 0);
+		auto& receiver = fixture.createMessenger(tcp, 1);
+		auto& non_participant = fixture.createMessenger(tcp, 2);
 		
-		vector<string> alphabet;
-		for(char32_t i = 0; i < 0x10FFFF; i++){
-			if((0xDFFF <= i && i <= 0xD800) || (0xFDEF <= i && i <= 0xFDD0) || (i == 0xFFFE)){
+		auto recipient = fixture.createRecipient(1);
+		std::string test_message = "Hello World";
+		
+		REQUIRE_NOTHROW(sender.SendTo(test_message, recipient));
+		REQUIRE_NOTHROW(receiver.Receive());
+		REQUIRE_THROWS_AS(non_participant.Receive(), std::runtime_error);
+		
+		auto received_message = receiver.GetFirstMessage();
+		REQUIRE(received_message == test_message);
+	}
+	
+	SECTION("UDP successful message delivery") {
+		auto& sender = fixture.createMessenger(udp, 0);
+		auto& receiver = fixture.createMessenger(udp, 1);
+		
+		auto recipient = fixture.createRecipient(1);
+		std::string test_message = "Hello World";
+		
+		REQUIRE_NOTHROW(sender.SendTo(test_message, recipient));
+		REQUIRE_NOTHROW(receiver.Receive());
+		
+		auto received_message = receiver.GetFirstMessage();
+		REQUIRE(received_message == test_message);
+	}
+	
+	SECTION("Reply functionality TCP") {
+		auto& messenger1 = fixture.createMessenger(tcp, 0);
+		auto& messenger2 = fixture.createMessenger(tcp, 1);
+		auto recipient1 = fixture.createRecipient(0);
+		auto recipient2 = fixture.createRecipient(1);
+		
+		std::string original_message = "Hello";
+		std::string reply_message = "Reply";
+		
+		REQUIRE_NOTHROW(messenger1.SendTo(original_message, recipient1));
+		REQUIRE_NOTHROW(messenger2.Receive());
+		
+		auto received = messenger2.GetFirstMessage();
+		REQUIRE(received == original_message);
+		
+		REQUIRE_NOTHROW(messenger2.ReplyTo(reply_message, recipient1));
+		REQUIRE_NOTHROW(messenger1.Receive());
+		
+		auto reply_received = messenger1.GetFirstMessage();
+		REQUIRE(reply_received == reply_message);
+	}
+	
+	SECTION("Reply functionality UDP") {
+		auto& messenger1 = fixture.createMessenger(udp, 0);
+		auto& messenger2 = fixture.createMessenger(udp, 1);
+		auto recipient1 = fixture.createRecipient(0);
+		auto recipient2 = fixture.createRecipient(1);
+		
+		std::string original_message = "Hello";
+		std::string reply_message = "Reply";
+		
+		REQUIRE_NOTHROW(messenger1.SendTo(original_message, recipient1));
+		REQUIRE_NOTHROW(messenger2.Receive());
+		
+		auto received = messenger2.GetFirstMessage();
+		REQUIRE(received == original_message);
+		
+		REQUIRE_NOTHROW(messenger2.ReplyTo(reply_message, recipient1));
+		REQUIRE_NOTHROW(messenger1.Receive());
+		
+		auto reply_received = messenger1.GetFirstMessage();
+		REQUIRE(reply_received == reply_message);
+	}
+	
+	SECTION("Edge cases") {
+		auto& messenger = fixture.createMessenger(tcp, 0);
+		
+		SECTION("Empty messages") {
+			std::string empty_msg = "";
+			REQUIRE_NOTHROW(messenger.Send(empty_msg));
+		}
+		
+		SECTION("Large messages") {
+			std::string large_msg(10000, 'A');
+			REQUIRE_NOTHROW(messenger.Send(large_msg));
+		}
+		
+		SECTION("Unicode messages") {
+			std::string unicode_msg = "Hello 世界 🌍";
+			REQUIRE_NOTHROW(messenger.Send(unicode_msg));
+		}
+		
+		SECTION("Special characters") {
+			std::string special_msg = "Hello|World\n\t\r";
+			REQUIRE_NOTHROW(messenger.Send(special_msg));
+		}
+	}
+}
+
+TEST_CASE("Testing multiple TCP agents", "[NM][TCP][MULTI]"){
+		string alphabet;
+		for(int i = 0; i < 256; i += 1){
+			if(i == '\n' || i == '\r' || i == '\t' || i == '|')
 				continue;
-			}
-			string str(1,i);
-			alphabet.push_back(str);
+			alphabet += static_cast<char>(i);
 		}
 		std::random_device rand_dev;
 		std::mt19937 eng(rand_dev());
 		std::uniform_int_distribution<> dist(0, alphabet.size() - 1);
-		vector<NetMessenger *> agents;
+		vector<std::unique_ptr<NetMessenger>> agents;
 		vector<Recipient> addrs;
+		agents.reserve(20);
+		addrs.reserve(20);
 		for(int i = 0; i < 20; i += 1){
-			agents[i] = new NetMessenger(tcp, 8080 + i);
-			Recipient r; 
-			r->address = "localhost";
-			r->port = 8080 + i;
-			addrs[i] = r;
+			agents.emplace_back(std::make_unique<NetMessenger>(tcp, 8080 + i));
+			addrs.emplace_back(std::make_shared<recipient>("localhost", 8080 + i));
 		}
 
 		//u32string msg1;
@@ -884,30 +917,34 @@ TEST_CASE("Testing NetMessenger", "[NM]"){
 				msg2 += alphabet[dist(eng)];
 			}
 
-			NetMessenger * agent1 = agents[i%20];
-			NetMessenger * agent2 = agents[(i+1)% 20];
-			agent1->SendTo(msg1, addrs[i+1]);
-			agent2->Receive();
-			msg2 = agent2->GetFirstMessage();
+			int idx1 = i % 20;
+			int idx2 = (i + 1) % 20;
+			agents[idx1]->SendTo(msg1, addrs[i+1]);
+			agents[idx2]->Receive();
+			msg2 = agents[idx2]->GetFirstMessage();
 			CHECK(stringEqual(msg1, msg2));
+			CAPTURE(msg1, msg2);
 			
-			agent2->SendTo(msg2, addrs[i]);
-			agent1->Receive();
-			msg1 = agent1->GetFirstMessage();
+			agents[idx2]->SendTo(msg2, addrs[i]);
+			agents[idx1]->Receive();
+			msg1 = agents[idx1]->GetFirstMessage();
+			CHECK(stringEqual(msg1, msg2));
+			CAPTURE(msg1, msg2);
+			
+			agents[idx2]->SendTo(msg2, addrs[i]);
+			agents[idx1]->Receive();
+			msg1 = agents[idx1]->GetFirstMessage();
 			CHECK(stringEqual(msg1, msg2));
 			msg1.erase();
 			msg2.erase();
 		}
 
 		for(int i = 0; i < agents.size(); i += 1){
-			delete(agents[i]);
 			agents[i] = nullptr;
-			addrs[i] = nullptr;
 		}
 	}
 
-
-	SECTION("Testing multiple UDP agents", "[NM][UDP][MULTI]"){
+TEST_CASE("Testing multiple UDP agents", "[NM][UDP][MULTI]"){
 		
 		vector<string> alphabet;
 		for(char32_t i = 0; i < 0x10FFFF; i++){
@@ -920,14 +957,13 @@ TEST_CASE("Testing NetMessenger", "[NM]"){
 		std::random_device rand_dev;
 		std::mt19937 eng(rand_dev());
 		std::uniform_int_distribution<> dist(0, alphabet.size() - 1);
-		vector<NetMessenger *> agents;
+		vector<std::unique_ptr<NetMessenger>> agents;
 		vector<Recipient> addrs;
+			agents.reserve(20);
+		addrs.reserve(20);
 		for(int i = 0; i < 20; i += 1){
-			agents[i] = new NetMessenger(udp, 8080 + i);
-			Recipient r; 
-			r->address = "localhost";
-			r->port = 8080 + i;
-			addrs[i] = r;
+			agents.emplace_back(std::make_unique<NetMessenger>(udp, 8080 + i));
+			addrs.emplace_back(std::make_shared<recipient>("localhost", 8080 + i));
 		}
 
 		//u32string msg1;
@@ -947,29 +983,28 @@ TEST_CASE("Testing NetMessenger", "[NM]"){
 				msg2 += alphabet[dist(eng)];
 			}
 
-			NetMessenger * agent1 = agents[i%20];
-			NetMessenger * agent2 = agents[(i+1)% 20];
-			agent1->SendTo(msg1, addrs[i+1]);
-			agent2->Receive();
-			msg2 = agent2->GetFirstMessage();
+			int idx1 = i % 20;
+			int idx2 = (i+1)%20;
+			agents[idx1]->SendTo(msg1, addrs[i+1]);
+			agents[idx2]->Receive();
+			msg2 = agents[idx2]->GetFirstMessage();
 			CHECK(stringEqual(msg1, msg2));
+			CAPTURE(msg1, msg2);
 			
-			agent2->SendTo(msg2, addrs[i]);
-			agent1->Receive();
-			msg1 = agent1->GetFirstMessage();
+			agents[idx2]->SendTo(msg2, addrs[i]);
+			agents[idx1]->Receive();
+			msg1 = agents[idx1]->GetFirstMessage();
 			CHECK(stringEqual(msg1, msg2));
+			CAPTURE(msg1, msg2);
 			msg1.erase();
 			msg2.erase();
 		}
 
 		for(int i = 0; i < agents.size(); i += 1){
-			delete(agents[i]);
 			agents[i] = nullptr;
 			addrs[i] = nullptr;
 		}
 	}
-
-}
 
 typedef struct{ string name;
 	double count;
@@ -997,49 +1032,46 @@ struct riPair {
 
 TEST_CASE("Testing Server", "[SRV]"){
 	SECTION("Testing syn", "[TCP][UDP][SYN]"){
-		std::unique_ptr<IDB> db1 = std::make_unique<DBConnector>("jdbc:mariadb://localhost:3306/foodservertest");
-		NetMessenger * messenger1 = new NetMessenger(udp);
-		Server * server1 = new Server(*messenger1, std::move(db1));
+		std::unique_ptr<IDB> db1 = std::make_unique<DBConnector>("jdbc:mariadb://localhost:3306/FoodServerTest");
+		auto messenger1 = std::make_unique<NetMessenger>(udp);
+		auto server1 = std::make_unique<Server>(*messenger1, std::move(db1));
 
-		std::unique_ptr<IDB> db2 = std::make_unique<DBConnector>("jdbc:mariadb://localhost:3306/foodservertest");
-		NetMessenger * messenger2 = new NetMessenger(tcp);
-		Server * server2 = new Server(*messenger2, std::move(db2));
+		std::unique_ptr<IDB> db2 = std::make_unique<DBConnector>("jdbc:mariadb://localhost:3306/FoodServerTest");
+		auto messenger2 = std::make_unique<NetMessenger>(tcp);
+		auto server2 = std::make_unique<Server>(*messenger2, std::move(db2));
 
-		Recipient udp_rec;
+		Recipient udp_rec = std::make_shared<recipient>();
 		udp_rec->address = "localhost";
 		udp_rec->port = 2021;
 
-		Recipient tcp_rec;
+		Recipient tcp_rec = std::make_shared<recipient>();
 		tcp_rec->address = "localhost";
 		tcp_rec->port = 2022;
 
-		NetMessenger * udp_com = new NetMessenger(udp);
-		NetMessenger * tcp_com = new NetMessenger(tcp);
+		auto udp_com = std::make_unique<NetMessenger>(udp);
+		auto tcp_com = std::make_unique<NetMessenger>(tcp);
 
 		udp_com->SendTo("0", udp_rec);
 		udp_com->Receive();
 
 		CHECK(stringEqual(udp_com->GetFirstMessage(), "OK"));
+		CAPTURE(udp_com->GetFirstMessage());
 
 		tcp_com->SendTo("0", tcp_rec);
 		tcp_com->Receive();
 
 		CHECK(stringEqual(tcp_com->GetFirstMessage(), "OK"));
-
-		delete server1;
-		delete server2;
-		delete udp_com;
-		delete tcp_com;
+		CAPTURE(tcp_com->GetFirstMessage());
 	}
 
 	SECTION("Testing addition and deletion requests in UDP", "[UDP][ADD][DEL]"){
 		NetMessenger msngr(udp, 2021);
-		Server * server = new Server(msngr);
-		Recipient r_serv; 
+		auto server = std::make_unique<Server>(msngr);
+		Recipient r_serv = std::make_shared<recipient>(); 
 		r_serv->address = "localhost";
 		r_serv->port = 2021;
-		NetMessenger * com = new NetMessenger(udp);
-		DBConnector * db = new DBConnector("jdbc:mariadb://localhost:3306/foodservertest");
+		auto com = std::make_unique<NetMessenger>(udp);
+		auto db = std::make_unique<DBConnector>("jdbc:mariadb://localhost:3306/FoodServerTest");
 		
 		com->SendTo("0", r_serv);
 		ingredient_request ing1 = { "a", 2.0, "g" };
@@ -1049,15 +1081,18 @@ TEST_CASE("Testing Server", "[SRV]"){
 		com->Receive();
 		string response = com->GetFirstMessage();
 		CHECK(stringEqual("OK", response));
+		CAPTURE(response);
 
 		string result;
 		CHECK_NOTHROW(result = db->GetIngredientByIndex(0));
 		CHECK(stringEqual(result, ing1.name));
+		CAPTURE(result, ing1.name);
 
 		com->Send("20" + reqToString(ing1));
 		com->Receive();
 		response = com->GetFirstMessage();
 		CHECK(stringEqual(response, "OK"));
+		CAPTURE(response);
 		CHECK_NOTHROW(result = db->GetIngredientByIndex(0));
 		CHECK(result.empty());
 
@@ -1065,21 +1100,17 @@ TEST_CASE("Testing Server", "[SRV]"){
 		com->Receive();
 		response = com->GetFirstMessage();
 		CHECK(stringEqual(response, "OK"));
-
-		delete server;
-		delete com;
-		delete db;
-
+		CAPTURE(response);
 	}
 
 	SECTION("Testing addition and deletion requests in TCP", "[TCP][ADD][DEL]"){
 		NetMessenger msngr(tcp, 2021);
-		Server * server = new Server(msngr);
-		Recipient r_serv; 
+		auto server = std::make_unique<Server>(msngr);
+		Recipient r_serv = std::make_shared<recipient>(); 
 		r_serv->address = "localhost";
 		r_serv->port = 2021;
-		NetMessenger * com = new NetMessenger(tcp);
-		DBConnector * db = new DBConnector("jdbc:mariadb://localhost:3306/foodservertest");
+		auto com = std::make_unique<NetMessenger>(tcp);
+		auto db = std::make_unique<DBConnector>("jdbc:mariadb://localhost:3306/FoodServerTest");
 
 		com->SendTo("0", r_serv);
 		ingredient_request ing1 = { "a", 2.0, "g" };
@@ -1089,15 +1120,18 @@ TEST_CASE("Testing Server", "[SRV]"){
 		com->Receive();
 		string response = com->GetFirstMessage();
 		CHECK(stringEqual("OK", response));
+		CAPTURE(response);
 
 		string result;
 		CHECK_NOTHROW(result = db->GetIngredientByIndex(0));
 		CHECK(stringEqual(result, ing1.name));
+		CAPTURE(result, ing1.name);
 
 		com->Send("20" + reqToString(ing1));
 		com->Receive();
 		response = com->GetFirstMessage();
 		CHECK(stringEqual(response, "OK"));
+		CAPTURE(response);
 		CHECK_NOTHROW(result = db->GetIngredientByIndex(0));
 		CHECK(result.empty());
 
@@ -1105,20 +1139,17 @@ TEST_CASE("Testing Server", "[SRV]"){
 		com->Receive();
 		response = com->GetFirstMessage();
 		CHECK(stringEqual(response, "OK"));
-		
-		delete server;
-		delete com;
-		delete db;	
+		CAPTURE(response);
 	}
 
 	SECTION("Testing  reserving, and releasing in UDP", "[UDP][LIN][RES]"){
-		Recipient r_serv; 
+		Recipient r_serv = std::make_shared<recipient>(); 
 		r_serv->address = "localhost";
 		r_serv->port = 2021;
-		NetMessenger * com = new NetMessenger(udp);
-		DBConnector * db = new DBConnector("jdbc:mariadb://localhost:3306/foodservertest");
+		auto com = std::make_unique<NetMessenger>(udp);
+		auto db = std::make_unique<DBConnector>("jdbc:mariadb://localhost:3306/FoodServerTest");
 		NetMessenger msngr(udp, 2021);
-		Server * server = new Server(msngr);
+		auto server = std::make_unique<Server>(msngr);
 
 		com->SendTo("0", r_serv);
 
@@ -1142,19 +1173,15 @@ TEST_CASE("Testing Server", "[SRV]"){
 		com->Send("2|a|0.25");
 		com->Receive();
 		response = com->GetFirstMessage();
-
-		delete server;
-		delete db;
-		delete com;
 	}
 
 	SECTION("Testing matchings in UDP", "[UDP][MTC]"){
 		NetMessenger msngr(udp, 2021);
-		Server * server = new Server(msngr);
-		Recipient r_serv;
+		auto server = std::make_unique<Server>(msngr);
+		Recipient r_serv = std::make_shared<recipient>();
 		r_serv->address = "localhost";
 		r_serv->port = 2021;
-		NetMessenger * com = new NetMessenger(udp);
+		auto com = std::make_unique<NetMessenger>(udp);
 
 		com->SendTo("0", r_serv);
 		// Method: generate m random recipes, with a random number ('unique' to
@@ -1242,6 +1269,7 @@ TEST_CASE("Testing Server", "[SRV]"){
 			com->Receive();
 			string res = com->GetFirstMessage();
 			CHECK(stringEqual(recipe, res));
+			CAPTURE(recipe, res);
 		}
 
 
@@ -1285,8 +1313,7 @@ TEST_CASE("Testing Server", "[SRV]"){
 			CHECK(std::find(union_set.begin(), union_set.end(), tokens[i]) != union_set.end());
 		}
 
-		delete server;
-		delete com;
+
 	}
 
 }

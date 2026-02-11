@@ -1,6 +1,8 @@
 
 #include <mariadb/conncpp.hpp>
 
+#include <mariadb/conncpp/PreparedStatement.hpp>
+#include <mariadb/conncpp/ResultSet.hpp>
 #include <string>
 #include <fstream>
 #include <stdexcept>
@@ -24,7 +26,7 @@ string DBConnector::GetIngredientByIndex(int index){
 	unique_ptr<PreparedStatement> stmt(connection->prepareStatement("Select name from groceries where id - (select min(id) from groceries) = ?"));
 	stmt->setInt(1, index);
 	
-	sql::ResultSet *res = stmt->executeQuery();
+	unique_ptr<sql::ResultSet> res(std::move(stmt->executeQuery()));
 	int i = -1;
 	while(res->next() && i < index){
 		i += 1;
@@ -61,12 +63,25 @@ void DBConnector::CreateRecipe(string name, string instruction, string url){
 }
 
 void DBConnector::MapRecipeToIngredient(string recipe, float amount, string ingredient){
-	unique_ptr<PreparedStatement> stmt(connection->prepareStatement(
+	unique_ptr<PreparedStatement> final_stmt(connection->prepareStatement(
 				"insert into recipe_ingredients (ingredient_index, quantity, recipe_index) values (( select id from groceries where name = ?), ?, (select id from recipes where name = ?))"));
-	stmt->setString(1, ingredient);
-	stmt->setFloat(2, amount);
-	stmt->setString(3, recipe);
-	stmt->execute();
+	unique_ptr<PreparedStatement> g_id_stmt(connection->prepareStatement("select id from groceries where name = ?"));
+
+	unique_ptr<PreparedStatement> r_id_stmt(connection->prepareStatement("select id from recipes where name = ?"));
+	g_id_stmt->setString(1, ingredient);
+	final_stmt->setFloat(2, amount);
+	r_id_stmt->setString(3, recipe);
+	
+	unique_ptr<sql::ResultSet> g_res(std::move(g_id_stmt->executeQuery()));
+	unique_ptr<sql::ResultSet> r_res(std::move(r_id_stmt->executeQuery()));
+
+	int g_id = g_res->getInt(1);
+	int r_id = r_res->getInt(1);
+
+	final_stmt->setInt(1,g_id);
+	final_stmt->setInt(3, r_id);
+	final_stmt->execute();
+	connection->commit();
 }
 
 
@@ -110,7 +125,7 @@ vector<pair<int,float>> DBConnector::Reserve(vector<string> ingredients, vector<
 	for(int i = 0; i < ingredients.size(); i+= 1){
 		avail->setString(i+1, ingredients[i]);
 	}
-	sql::ResultSet *res = avail->executeQuery();
+	unique_ptr<sql::ResultSet> res(std::move(avail->executeQuery()));
 	vector<pair<int, float>> overages;
 	while(res->next()){
 		string ingredient = static_cast<string>(res->getString(1));
@@ -159,7 +174,7 @@ DBConnector::DBConnector(){
 	pfile.close();
 
 	driver = sql::mariadb::get_driver_instance();
-	sql::SQLString url = ("jdbc:mariadb://localhost:3306/foodserver");
+	sql::SQLString url = ("jdbc:mariadb://localhost:3306/FoodServer");
 	sql::Properties properties({
 			{"user", "foodserver"},
 			{"password", res}});
@@ -201,7 +216,7 @@ DBConnector::DBConnector(string address){
 vector<string> DBConnector::GetIngredients(std::string recipe){
 	unique_ptr<PreparedStatement> stmt(connection->prepareStatement("select name, ((amount * quantity) - in_use) amount from groceries join recipe_ingredients on id = ingredient_index where recipe_index = (select id from recipes where name = ?)"));
 	stmt->setString(1, recipe);
-	sql::ResultSet *results = stmt->executeQuery();
+	unique_ptr<sql::ResultSet> results(std::move(stmt->executeQuery()));
 
 	vector<string> output;
 	while(results->next()){
@@ -216,10 +231,10 @@ vector<string> DBConnector::GetIngredients(std::string recipe){
 vector<string> DBConnector::GetRecipes(vector<string> ingredients){
 	vector<string> output;
 	unique_ptr<PreparedStatement> stmt(connection->prepareStatement("select name from recipes join recipe_ingredients on id=recipe_index where ingredient_index = (select id from groceries where name = ?)"));
-	sql::ResultSet *results;
+	unique_ptr<sql::ResultSet> results;
 	for(string ingredient : ingredients){
 		stmt->setString(1, ingredient);
-		results = stmt->executeQuery();
+		results = unique_ptr<sql::ResultSet>(std::move(std::move(stmt->executeQuery())));
 		while(results->next()){
 			output.push_back(static_cast<string>(results->getString(1)));
 		}
@@ -244,7 +259,7 @@ vector<string> DBConnector::GetInstructions(vector<string> recipes){
 	for(int i = 0; i < recipes.size(); i += 1){
 		stmt->setString(i+1, recipes[i]);
 	}
-	sql::ResultSet *results = stmt->executeQuery();
+	unique_ptr<sql::ResultSet> results(std::move(stmt->executeQuery()));
 	vector<string> output;
 	while(results->next()){
 		output.push_back(static_cast<string>(results->getString(1)));

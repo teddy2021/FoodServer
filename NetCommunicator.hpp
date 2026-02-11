@@ -16,6 +16,7 @@ class Communicator{
 		std::unique_ptr<std::string> recv_buffer;
 		boost::shared_ptr<std::string> outgoing;
 		bool connected = false;
+		unsigned int msgSize;
 
 		virtual void StoreMessage(const boost::system::error_code &err,
 				std::size_t transferred){};
@@ -41,5 +42,6 @@ class Communicator{
 		virtual protocol_type GetProtocol(){return udp;};
 		virtual void Reply(std::string message){};
 
+		virtual unsigned int maxSize(){return 0;};
 };
 

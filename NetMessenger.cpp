@@ -22,7 +22,7 @@ NetMessenger::NetMessenger(protocol_type type):context(), inbox(), outbox(){
 			comms = std::make_shared<TCPCommunicator>(context, 0xDEAD);
 			break;
 		case udp:
-			comms = std::make_shared<UDPCommunicator>(context, 0xDEAD);
+			comms = std::make_shared<UDPCommunicator>(context, static_cast<unsigned short>(0xDEAD));
 			break;
 		default:
 			return;
@@ -59,6 +59,7 @@ NetMessenger::NetMessenger(NetMessenger & other): comms(std::move(other.comms)),
 	inbox = other.inbox;
 	outbox = other.outbox;
 	toGoOut = other.toGoOut;
+	other.comms = nullptr;
 }
 
 NetMessenger & NetMessenger::operator=(NetMessenger &other){
@@ -102,6 +103,9 @@ void NetMessenger::Receive(){
 		}
 		catch (std::out_of_range e){
 			throw std::runtime_error("[NetMessenger::Receive 1] a size of '" + m_size + "' is way too big.");
+		}
+		if(size < 0 || size > comms->maxSize()){
+			throw std::runtime_error("[NetMessenger::Receive 1] packet received larger than allowed.");
 		}
 		comms->ResizeBuffer(size);
 		try{

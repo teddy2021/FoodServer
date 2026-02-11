@@ -12,7 +12,7 @@ struct recipient {
 	recipient(recipient & other): address(other.address), port(other.port){};
 	recipient(std::string addr, unsigned short prt): address(addr), port(prt){};
 	std::string address;
-	unsigned int port;
+	unsigned short port;
 };
 typedef std::shared_ptr<recipient> Recipient;
 

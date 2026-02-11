@@ -30,16 +30,16 @@ class mockdb: public IDB {
 		mockdb(){};
 		mockdb(string address){};
 		
-		void CreateIngredient(string name, float amount, bool mass){
+		void CreateIngredient(string name, float amount, bool mass) override{
 			_grocery groce = { amount, mass};
 			groceries.try_emplace(name, amount);
 		}
 
-		void CreateRecipe(string name, string instruction){
+		void CreateRecipe(string name, string instruction, string url="nil") override{
 			recipes.try_emplace(name, instruction);
 		}
 
-		void MapRecipeToIngredient(string recipe, float quantity, string ingredient){
+		void MapRecipeToIngredient(string recipe, float quantity, string ingredient) override{
 			auto it1 = recipes.find(recipe);
 			auto it2 = groceries.find(ingredient);
 			if(it1 != recipes.end() && it2 != groceries.end()){
@@ -48,21 +48,21 @@ class mockdb: public IDB {
 			}
 		}
 
-		void DeleteIngredient(string name){
+		void DeleteIngredient(string name) override{
 			auto it = groceries.find(name);
 			if(it != groceries.end()){
 				groceries.erase(it);
 			}
 		}
 
-		void DeleteRecipe(string name){
+		void DeleteRecipe(string name) override{
 			auto it = recipes.find(name);
 			if(it != recipes.end()){
 				recipes.erase(it);
 			}
 		}
 
-		vector<pair<int, float>> Reserve(vector<string> ingredients, vector<float> amounts){
+		vector<pair<int, float>> Reserve(vector<string> ingredients, vector<float> amounts) override{
 			vector<pair<int, float>> out;
 			for(int i = 0; i < ingredients.size(); i += 1){
 				auto it = reserved.find(ingredients[i]);
@@ -78,14 +78,14 @@ class mockdb: public IDB {
 			
 		}
 
-		void UpdateIngredient(string name, float amount){
+		void UpdateIngredient(string name, float amount) override{
 			auto it = groceries.find(name);
 			if( it != groceries.end()){
 				it->second.amount += amount;
 			}
 		}
 
-		vector<string> GetIngredients(string recipe){
+		vector<string> GetIngredients(string recipe) override{
 			vector<string> out;
 			auto it = mappings.find(recipe);
 			if(it != mappings.end()){
@@ -97,7 +97,7 @@ class mockdb: public IDB {
 			return out;
 		}
 
-		vector<string> GetRecipes(vector<string> ingredients){
+		vector<string> GetRecipes(vector<string> ingredients) override{
 			vector<string> out;
 			for(auto it = mappings.begin(); it != mappings.end(); it++){
 				vector<_mapping> res = it->second;
@@ -115,26 +115,17 @@ class mockdb: public IDB {
 			return out;
 		}
 
-		string GetIngredientByIndex(int index){
+		string GetIngredientByIndex(int index) override{
 			int i = 0;
 			auto it = groceries.begin();
-			while(i < groceries.size()){
+			while(i < index && it != groceries.end()){
 				it++;
 				i += 1;
 			}
-			return it->first;
+			return (it != groceries.end()) ? it->first : "";
 		}
 
-		vector<string> GetIngredients(string recipe){
-			vector<_mapping> ingredients = mappings[recipe];
-			vector<string> out;
-			for(int i = 0; i < ingredients.size(); i += 1){
-				out.push_back(ingredients[i].ingredient);
-			}
-			return out;
-		}
-
-		vector<string> GetInstructions(vector<string> recipes){
+		vector<string> GetInstructions(vector<string> recipes) override{
 			vector<string> out;
 			for(int i = 0; i < recipes.size(); i += 1){
 				out.push_back(this->recipes[recipes[i]]);
@@ -142,7 +133,7 @@ class mockdb: public IDB {
 			return out;
 		}
 
-		void Release(vector<string> items, vector<float> amounts){
+		void Release(vector<string> items, vector<float> amounts) override{
 			for(int i = 0; i < items.size(); i += 1){
 				auto it = reserved.find(items[i]);
 				if(it != reserved.end() && it->second - amounts.at(i) <= 0){
