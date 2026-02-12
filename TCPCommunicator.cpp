@@ -3,7 +3,9 @@
 #include <boost/asio/basic_socket.hpp>
 #include <boost/asio/basic_socket_acceptor.hpp>
 #include <boost/asio/error.hpp>
+#include <boost/system/detail/error_code.hpp>
 #include <catch2/catch_tostring.hpp>
+#include <memory>
 #include <stdexcept>
 #include <string>
 #include <iostream>
@@ -33,8 +35,14 @@ TCPCommunicator::~TCPCommunicator(){
 	
 	// Clean up socket first
 	if(socket && socket->is_open()){  
-		socket->shutdown(boost::asio::ip::tcp::socket::shutdown_both, err);
-		socket->close(err);
+		boost::system::error_code ec = socket->shutdown(boost::asio::ip::tcp::socket::shutdown_both, err);
+		if(ec || err){
+			cerr << "[~TCPCommunicator()]: Failed to shutdown the socket.\n\t" << err.message() << " | " << ec.message();
+		}
+		ec = socket->close(err);
+		if(ec || err){
+			cerr << "[~TCPCommunicator()]: Failed to close the socket.\n\t." << err.message() << " | " << ec.message();
+		}
 	}
 	
 	// Clean up acceptor
@@ -110,16 +118,23 @@ void TCPCommunicator::Accept(){
 		if(err){
 			throw std::runtime_error("[TCPCommunicator::Accept] Failed to open acceptor:\n\t" + err.message());
 		}
+		acceptor->listen();
+		if(err){
+			throw std::runtime_error("[TCPCommunicator::Accept] Failed to start listening:\n\t" + err.message());
+		}
 	}
 	
+	if(socket->is_open()){
+		socket->close();
+	}
+	socket = std::make_unique<boost::asio::ip::tcp::socket>(*io_context_ref);
 	// Accept the connection
-	acceptor->accept(*socket, err);
-	if(err){
+	acceptor->accept(*socket, remote_end, err);
+	if(err ){
 		cerr << "[TCPCommunicator::Accept] An error occurred:\n\t" << err.message() << "\n";
-		throw std::runtime_error("[TCPCommunicator::Accept] Failed to accept connection:\n\t" + err.message());
+		throw std::runtime_error("[TCPCommunicator::Accept] Failed to accept connection:\n\t" + err.message() + "\n");
 	}
 	else{
-		remote_end = socket->remote_endpoint();
 		connected = true;
 	}
 }
@@ -165,9 +180,6 @@ string TCPCommunicator::GetMessage(){
 }
 
 string TCPCommunicator::remote_address(){
-	if(!socket->is_open()){
-		throw std::runtime_error("[TCPCommunicator::remote_address()]: Socket is not open.");
-	}
 	return socket->remote_endpoint().address().to_string();
 }
 
@@ -186,7 +198,7 @@ protocol_type TCPCommunicator::GetProtocol(){
 
 
 void TCPCommunicator::Connect(boost::asio::io_context & context, string address){
-	tcp::resolver resolver(context);
+	tcp::resolver resolver(*io_context_ref);
 	tcp::resolver::results_type res = resolver.resolve(address, std::to_string(0xBEEF));
 	if(res.empty()){
 		throw std::runtime_error("Failed to resolve any peers on " + address + ":0xBEEF");
@@ -207,7 +219,7 @@ void TCPCommunicator::Connect(boost::asio::io_context & context, string address)
 
 
 void TCPCommunicator::Connect(boost::asio::io_context &context, std::string address, unsigned int port){
-	tcp::resolver resolver(context);
+	tcp::resolver resolver(*io_context_ref);
 	tcp::resolver::results_type res = resolver.resolve(address, std::to_string(port));
 	if(res.empty()){
 		throw std::runtime_error("Failed to resolve any peers on " + address + ":" + std::to_string(port));

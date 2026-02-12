@@ -13,7 +13,6 @@
 #include <catch2/generators/catch_generators.hpp>
 #include <catch2/generators/catch_generators_random.hpp>
 #include <catch2/generators/catch_generators_adapters.hpp>
-#include <locale>
 #include <memory>
 #include <string>
 #include <random>
@@ -22,7 +21,6 @@
 #include <thread>
 #include <bits/stdc++.h>
 #include <boost/algorithm/string/trim.hpp>
-#include <codecvt>
 
 using boost::algorithm::trim;
 using std::string;
@@ -83,9 +81,9 @@ bool stringEqual(string str1, string str2){
 }
 
 TEST_CASE("Testing Constructors"){
-	boost::asio::io_context con;
+	auto con = std::make_shared<boost::asio::io_context>();
 	SECTION("Testing UDPCommunicator","[UDP][Constructor]"){
-		con.run();
+		con->run();
 
 		CHECK_NOTHROW(std::make_unique<UDPCommunicator>(con, static_cast<unsigned short>(8081)));
 
@@ -174,49 +172,44 @@ TEST_CASE("Testing Constructors"){
 
 TEST_CASE("Testing connection establishment"){
 	SECTION("Testing UDPCommunicator", "[UDP][connect]"){
-		boost::asio::io_context con;
-		con.run();
+		auto con = std::make_shared<boost::asio::io_context>();
+		con->run();
 		UDPCommunicator comm1(con, static_cast<unsigned short>(8080));
 		UDPCommunicator comm2(con, static_cast<unsigned short>(8081));
 
-		CHECK_NOTHROW(comm1.Connect(con, "localhost", 8081));
+		CHECK_NOTHROW(comm1.Connect(*con, "localhost", 8081));
 		CHECK(comm1.remote_address() == "127.0.0.1");
 		CHECK(comm1.remote_port() == 8081);
 
-		CHECK_THROWS(comm1.Connect(con, "hostlocal"));
-		CHECK_THROWS(comm1.Connect(con, "hostlocal", 1234));
-		CHECK_THROWS(comm1.Connect(con, "localhost", -1));
+		CHECK_THROWS(comm1.Connect(*con, "hostlocal"));
+		CHECK_THROWS(comm1.Connect(*con, "hostlocal", 1234));
+		CHECK_THROWS(comm1.Connect(*con, "localhost", -1));
 	}
 
 
 	SECTION("Testing TCPCommunicator", "[TCP][connect]"){
-		boost::asio::io_context con1, con2;
+		auto con1 = std::make_shared<boost::asio::io_context>();
+		auto con2 = std::make_shared<boost::asio::io_context>();
 		auto comm1 = std::make_unique<TCPCommunicator>(con1);
 		auto comm2 = std::make_unique<TCPCommunicator>(con2, 8081);
 
-		CHECK_NOTHROW(comm1->Connect(con1, "localhost", 8081));
+		CHECK_NOTHROW(comm1->Connect(*con1, "localhost", 8081));
 		CHECK_NOTHROW(comm2->Accept());
-
-		std::thread t1([](boost::asio::io_context &ctx){
-				ctx.run();
-		}, std::ref(con2));
-		con1.run();
-		t1.join();
 		CHECK(comm1->remote_address() == "127.0.0.1");
 		CHECK(comm1->remote_port() == 8081);
 	}
 }
 
 TEST_CASE("Testing UDPCommunicator", "[UDP]"){
-	boost::asio::io_context con;
+	auto con = std::make_shared<boost::asio::io_context>();
 	SECTION("UDP basic send/receive", "[UDP][SEND][RECV]"){
 		auto com1 = std::make_unique<UDPCommunicator>(con, static_cast<unsigned short>(8080));
 		auto com2 = std::make_unique<UDPCommunicator>(con, static_cast<unsigned short>(8081));
 
-		com1->Connect(con, "localhost", 8081);
-		com2->Connect(con, "localhost", 8080);
+		com1->Connect(*con, "localhost", 8081);
+		com2->Connect(*con, "localhost", 8080);
 
-		con.run();
+		con->run();
 		string msg = "";
 		string msg1 = "";
 		string msg2 = "";
@@ -232,12 +225,12 @@ TEST_CASE("Testing UDPCommunicator", "[UDP]"){
 		CHECK_NOTHROW(com2->Send(msg));
 		CHECK_NOTHROW(com1->Receive());
 		CHECK_NOTHROW(msg2 = com1->GetMessage());
-		con.run();
+		con->run();
 		CHECK(stringEqual(msg, msg2));
 		CAPTURE(msg, msg2);
 
 		auto com3 = std::make_unique<UDPCommunicator>(con);
-		com3->Connect(con, "localhost", 2020);
+		com3->Connect(*con, "localhost", 2020);
 		msg = "hello";
 		CHECK_NOTHROW(com3->Send(msg));
 		CHECK_NOTHROW(com1->Receive());
@@ -254,9 +247,9 @@ TEST_CASE("Testing UDPCommunicator", "[UDP]"){
 		auto com1 = std::make_unique<UDPCommunicator>(con, static_cast<unsigned short>(8080));
 		auto com2 = std::make_unique<UDPCommunicator>(con, static_cast<unsigned short>(8081));
 
-		com1->Connect(con, "localhost", 8081);
+		com1->Connect(*con, "localhost", 8081);
 
-		con.run();
+		con->run();
 		string msg;
 		com1->Send("1234");
 		com2->Receive();
@@ -286,7 +279,7 @@ TEST_CASE("Testing UDPCommunicator", "[UDP]"){
 		auto com3 = std::make_unique<UDPCommunicator>(con, static_cast<unsigned short>(8083));
 
 		msg = "dvorak";
-		com3->Connect(con, "localhost", 8080);
+		com3->Connect(*con, "localhost", 8080);
 		com3->Send(msg);
 		com1->Receive();
 		com2->Receive();
@@ -333,9 +326,9 @@ TEST_CASE("Testing UDPCommunicator", "[UDP]"){
 		}
 		for(int i = 0; i < SOCK_MAX; i += 2){
 			INFO("Connecting " << i << "->" << (i+1));
-			agents[i]->Connect(con, "localhost", 8080 + i + 1);
+			agents[i]->Connect(*con, "localhost", 8080 + i + 1);
 			INFO("Connecting " << (i + 1) << "->" << i);
-			agents[i+1]->Connect(con, "localhost", 8080 + i);
+			agents[i+1]->Connect(*con, "localhost", 8080 + i);
 		}
 		string msg1;
 		string msg2;
@@ -406,86 +399,75 @@ TEST_CASE("Testing UDPCommunicator", "[UDP]"){
 
 TEST_CASE("Testing TCPCommunicator", "[TCP]"){
 
-	boost::asio::io_context con1, con2;
+	auto con1 = std::make_shared<boost::asio::io_context>();
+	auto con2 = std::make_shared<boost::asio::io_context>();
 	SECTION("TCP basic send/receive", "[TCP][SEND][RECV]"){
-		auto com1 = std::make_unique<TCPCommunicator>(con1, 8080);
-		auto com2 = std::make_unique<TCPCommunicator>(con2, 8081);
+		auto server = std::make_unique<TCPCommunicator>(con1, 8080);
+		auto client = std::make_unique<TCPCommunicator>(con2);
 
-
-		std::thread t1([](boost::asio::io_context &ctx, TCPCommunicator * com){
-				com->Connect(ctx, "localhost", 8081);
-				ctx.run();
-				}, std::ref(con2), com1.get());
-
-		com2->Accept();
-		t1.join();
 		
-		std::thread t2([](boost::asio::io_context &ctx, TCPCommunicator * com){
-				com->Connect(ctx, "localhost", 8081);
-				ctx.run();
-				}, std::ref(con1), com2.get());
-		com1->Accept();
-		t2.join();
+		std::thread client_thread([](boost::asio::io_context &ctx, TCPCommunicator * com){
+				com->Connect(ctx, "localhost", 8080);
+				}, std::ref(*con2), client.get());
+		server->Accept();
+		client_thread.join();
 
 		string msg1("asdf");
 		string msg2;
-		CHECK_NOTHROW(com1->Send(msg1));
-		CHECK_NOTHROW(com2->Receive());
+		CHECK_NOTHROW(client->Send(msg1));
+		CHECK_NOTHROW(server->Receive());
 
-		msg2 = com2->GetMessage();
+		msg2 = server->GetMessage();
 		CHECK(stringEqual(msg1, msg2) == true);
 		CAPTURE(msg1, msg2);
 		CAPTURE(msg1, msg2);
 
 		std::reverse(msg2.begin(), msg2.end());
-		CHECK_NOTHROW(com2->Send(msg2));
-		CHECK_NOTHROW(com1->Receive());
+		CHECK_NOTHROW(server->Send(msg2));
+		CHECK_NOTHROW(client->Receive());
 
-		msg1 = com1->GetMessage();
+		msg1 = client->GetMessage();
 		CHECK(stringEqual(msg1, msg2) == true);
 		CAPTURE(msg1, msg2);
 	}
 
 	SECTION("TCP reply", "[TCP][REPLY]"){
 
-		auto com1 = std::make_unique<TCPCommunicator>(con1, 8080);
-		auto com2 = std::make_unique<TCPCommunicator>(con2, 8081);
+auto client1 = std::make_unique<TCPCommunicator>(con1);
+		auto server1 = std::make_unique<TCPCommunicator>(con2, 8081);
 
 
-		com1->Connect(con1, "localhost", 8081);
-		com2->Accept();
+		std::thread t1([&](){
+				server1->Accept();
+				});
 
-		std::thread t1([](boost::asio::io_context &ctx){
-				ctx.run();
-				}, std::ref(con2));
-
+		client1->Connect(*con1, "localhost", 8081);
 		t1.join();
-		com2->Connect(con2, "localhost", 8080);
-		com1->Accept();
-
-		std::thread t2([](boost::asio::io_context &ctx){
-				ctx.run();
-				}, std::ref(con1));
-
-		t2.join();
 
 		string msg1("asdf");
 		string msg2;
-		com1->Send(msg1);
-		com2->Receive();
+		client1->Send(msg1);
+		server1->Receive();
 
-		msg1 = com2->GetMessage();
+		msg1 = server1->GetMessage();
 		msg2 = "hello";
-		CHECK_NOTHROW(com2->Reply(msg2));
-		com1->Receive();
-		msg1 = com1->GetMessage();
+		CHECK_NOTHROW(server1->Reply(msg2));
+		client1->Receive();
+		msg1 = client1->GetMessage();
 		CHECK(stringEqual(msg1, msg2) == true);
 		CAPTURE(msg1, msg2);
 
 		msg1 = "goodbye";
-		CHECK_NOTHROW(com1->Reply(msg1));
-		com2->Receive();
-		msg2 = com2->GetMessage();
+		CHECK_NOTHROW(client1->Reply(msg1));
+		server1->Receive();
+		msg2 = server1->GetMessage();
+		CHECK(stringEqual(msg1, msg2));
+		CAPTURE(msg1, msg2);
+
+		msg1 = "goodbye";
+		CHECK_NOTHROW(client1->Reply(msg1));
+		server1->Receive();
+		msg2 = server1->GetMessage();
 		CHECK(stringEqual(msg1, msg2));
 		CAPTURE(msg1, msg2);
 	}
@@ -513,20 +495,20 @@ TEST_CASE("Testing TCPCommunicator", "[TCP]"){
 			}
 		}
 		for(int i = 0; i < 20; i += 2){
-			agents[i]->Connect(con1, "localhost", 8080 + i + 1);
+			agents[i]->Connect(*con1, "localhost", 8080 + i + 1);
 			agents[i+1]->Accept();
-			con1.run();
+			con1->run();
 			std::thread t1([](boost::asio::io_context &ctx){
 					ctx.run();
-					}, std::ref(con2));
+					}, std::ref(*con2));
 			t1.join();
 
-			agents[i+1]->Connect(con2, "localhost", 8080 + i);
+			agents[i+1]->Connect(*con2, "localhost", 8080 + i);
 			agents[i]->Accept();
-			con1.run();
+			con1->run();
 			std::thread t2([](boost::asio::io_context &ctx){
 					ctx.run();
-					}, std::ref(con1));
+					}, std::ref(*con1));
 			t2.join();
 
 		}
