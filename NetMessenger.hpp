@@ -18,7 +18,7 @@ typedef std::shared_ptr<recipient> Recipient;
 
 class NetMessenger{
 	private:
-		boost::asio::io_context context;
+		std::shared_ptr<boost::asio::io_context> context;
 		std::shared_ptr<Communicator> comms;
 		MessageManager inbox; 
 		MessageManager outbox;
@@ -32,6 +32,7 @@ class NetMessenger{
 
 	public:
 		NetMessenger(){};
+		NetMessenger(std::shared_ptr<boost::asio::io_context> io_context, protocol_type type);
 		NetMessenger(protocol_type type);
 		NetMessenger(protocol_type type, unsigned short port);
 		NetMessenger(protocol_type type, std::string address, unsigned short port);
@@ -44,6 +45,7 @@ class NetMessenger{
 
 		friend void swap(NetMessenger first, NetMessenger second){
 			std::swap(first.comms,  second.comms);
+			std::swap(first.context, second.context);
 			std::swap(first.inbox,  second.inbox);
 			std::swap(first.outbox, second.outbox);
 			std::swap(first.toGoOut, second.toGoOut);
@@ -54,6 +56,7 @@ class NetMessenger{
 		void Send(std::string message);
 		void SendTo(std::string message, Recipient recipient);
 		void ReplyTo(std::string message, Recipient recipient);
+		void Connect(boost::asio::io_context& context, std::string address, unsigned short port);
 
 		std::string GetFirstMessage();
 		Recipient GetRemoteEndpoint();

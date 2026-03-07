@@ -15,6 +15,7 @@ using std::ifstream;
 using fs_path = boost::filesystem::path;
 
 #include "FileManager.hpp"
+#include "Logger.hpp"
 
 bool is_prefix(fs_path p1, boost::filesystem::path p2){
 	bool res = false;
@@ -36,6 +37,7 @@ bool is_prefix(fs_path p1, boost::filesystem::path p2){
 }
 
 FileManager::FileManager(string path, size_t lineLen): filepath(path){
+	Logger::GetInstance().log("[FileManager::FileManager] constructed with path: " + path, debug_level::INFO);
 	if(path.empty()){
 		return;
 	}

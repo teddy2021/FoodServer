@@ -1,0 +1,11 @@
+[Debug][06/03/2026 22:54:57]: [MessageManager::~MessageManager] destroyed
+[Debug][06/03/2026 22:54:57]: [MessageManager::~MessageManager] destroyed
+[Debug][06/03/2026 22:54:57]: [UDPCommunicator::~UDPCommunicator] destroyed
+[Debug][06/03/2026 22:54:57]: [MessageManager::~MessageManager] destroyed
+[Debug][06/03/2026 22:54:57]: [MessageManager::~MessageManager] destroyed
+[Debug][06/03/2026 22:54:57]: [UDPCommunicator::Receive] receiving
+[Debug][06/03/2026 22:54:57]: [UDPCommunicator::Receive] Receiving on connected socket.
+[Debug][06/03/2026 22:54:57]: [UDPCommunicator::Receive] receiving
+[Debug][06/03/2026 22:54:57]: [UDPCommunicator::Receive] Receiving on connected socket.
+[Debug][06/03/2026 22:54:57]: [UDPCommunicator::Receive] receiving
+[Debug][06/03/2026 22:54:57]: [UDPCommunicator::Receive] Receiving on connected socket.

@@ -4,8 +4,12 @@ set( CMAKE_CXX_COMPILER "/usr/bin/clang++" )
 set( CMAKE_BUILD_TYPE RelWithDebInfo )
 project(FoodServer)
 
+find_package(Catch2 REQUIRED)
+
 add_executable(server
 	main.cpp
+	Logger.cpp Logger.hpp
+	NetCommunicator.cpp NetCommunicator.hpp
 	MessageManager.cpp MessageManager.cpp
 	TCPCommunicator.cpp TCPCommunicator.hpp
 	UDPCommunicator.cpp UDPCommunicator.hpp
@@ -19,6 +23,8 @@ add_executable(server
 
 add_executable(tests
 	test_src/test.cpp
+	Logger.cpp Logger.hpp
+	NetCommunicator.cpp NetCommunicator.hpp
 	MessageManager.cpp MessageManager.cpp
 	TCPCommunicator.cpp TCPCommunicator.hpp
 	UDPCommunicator.cpp UDPCommunicator.hpp
@@ -36,7 +42,7 @@ include_directories("/usr/include/mariadb") #path to include folder
 add_library(mariadbcpp STATIC IMPORTED)
 set_property(TARGET mariadbcpp PROPERTY IMPORTED_LOCATION "/usr/lib/libmariadbcpp.so")
 
-find_package(Catch2 3 REQUIRED)
+target_compile_options(tests PRIVATE -g)
 target_link_libraries(tests PRIVATE Catch2::Catch2WithMain mariadbcpp boost_filesystem)
 target_link_libraries(server mariadbcpp boost_filesystem)
 

@@ -9,8 +9,10 @@
 using std::string;
 
 #include "MessageManager.hpp"
+#include "Logger.hpp"
 
 MessageManager::~MessageManager(){
+	Logger::GetInstance().log("[MessageManager::~MessageManager] destroyed", debug_level::DEBUG);
 	if(buffer.size() > 0){
 		buffer.clear();
 		status.clear();
@@ -47,7 +49,7 @@ string MessageManager::GetMessageFrom(int index){
 		throw std::runtime_error("[MessageManager::GetMessageFrom(" + std::to_string(index) + ")] out of bounds request for buffer of size " + std::to_string(status.size()));
 	}
 	if(status.empty() || status[index] != storing ){
-		throw invalid_state_exception("Message requested from a non-storing buffer");
+		throw invalid_state_exception("[MessageManager::GetMessageFrom(" + std::to_string(index) + ")] Message requested from a non-storing buffer");
 	}
 	status[index] = dirty;
 	return string(*buffer[index]);
@@ -77,7 +79,7 @@ void MessageManager::StoreMessage(int index, string message){
 		throw std::runtime_error("[StoreMessage] Cannot store message at index " + std::to_string(index) + " for buffer of size " + std::to_string(status.size()));
 	}
 	if(status.empty() || status[index] != in_use ){
-		throw invalid_state_exception("Attempting to store into a buffer that is not reserved");
+		throw invalid_state_exception("[MessageManager::StoreMessage(" + std::to_string(index) + ")] Attempting to store into a buffer that is not reserved");
 	}
 	if(strlen(message.c_str())!= message.size()){
 		throw std::runtime_error("[StoreMessage(" + std::to_string(index) + ", <corrupted message>)]: message has null bytes prior to string terminus.");

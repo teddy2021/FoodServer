@@ -21,14 +21,17 @@ using std::cerr;
 #include "IDB.hpp"
 #include "dbConnector.hpp"
 #include "NetMessenger.hpp"
+#include "Logger.hpp"
 
 Server::~Server(){
+	Logger::GetInstance().log("[Server::~Server] shutting down", debug_level::INFO);
 	if(!connections.empty()){
 		for(Recipient r : connections){
 			try{  
 				messenger.SendTo("Shutdown", r);
 			}
 			catch(std::runtime_error &rt_err){
+				Logger::GetInstance().log("[Server::~Server] Failed to send shutdown to connection: " + std::string(rt_err.what()), debug_level::WARN);
 			}
 		}		
 		connections.clear();
@@ -37,6 +40,7 @@ Server::~Server(){
 }
 
 vector<string> Server::Tokenize(string message){
+	Logger::GetInstance().log("[Server::Tokenize] tokenizing message: " + message.substr(0, 50), debug_level::DEBUG);
 	vector<string> output;
 	int start = 0;
 	int end = 0;
@@ -55,6 +59,7 @@ vector<string> Server::Tokenize(string message){
 }
 
 Request Server::ParseRequestType(string type){
+	Logger::GetInstance().log("[Server::ParseRequestType] parsing request type: " + type, debug_level::DEBUG);
 	int category;
 	try{
 		category = std::stoi(type);
@@ -63,6 +68,7 @@ Request Server::ParseRequestType(string type){
 	catch(std::invalid_argument e){
 		cerr << "[Server::ParseRequest("<<type<<")] error occured during type parsing.\n\t" <<
 			e.what() << "\n";
+		Logger::GetInstance().log("[Server::ParseRequestType] Failed to parse request type: " + type + " - " + e.what(), debug_level::ERROR);
 		throw;
 	}
 
@@ -119,6 +125,7 @@ Request Server::ParseRequestType(string type){
 			break;
 		default:
 			std::cout << "\tFAIL\n"; 
+			Logger::GetInstance().log("[Server::ParseRequestType] Unknown request type: " + type, debug_level::WARN);
 			throw invalid_state_exception(string("[Server::ParseRequest(" +
 					   	type + ")]: unknown request type."));
 			break;
@@ -153,17 +160,20 @@ void Server::CheckRequest(string fcn, Request request){
 
 
 Server::Server(protocol_type type): messenger(type), db(), connections(){
+	Logger::GetInstance().log("[Server::Server] protocol type", debug_level::INFO);
 	const auto processor_count = std::thread::hardware_concurrency();
 	worker_count = sysconf(_SC_NPROCESSORS_ONLN);
 	next_worker = 1;
 }
 
 Server::Server(protocol_type type, unsigned short int port): messenger(type, port), db(), connections(){
+	Logger::GetInstance().log("[Server::Server] protocol type and port: " + std::to_string(port), debug_level::INFO);
 	worker_count = std::thread::hardware_concurrency();
 	next_worker = 1;
 }
 
 Server::Server(NetMessenger net): messenger(net), db(), connections(){
+	Logger::GetInstance().log("[Server::Server] NetMessenger", debug_level::INFO);
 	db = std::make_unique<DBConnector>();
 	const auto processor_count = std::thread::hardware_concurrency();
 	worker_count = sysconf(_SC_NPROCESSORS_ONLN);
@@ -172,6 +182,7 @@ Server::Server(NetMessenger net): messenger(net), db(), connections(){
 
 
 void Server::Listen(){
+	Logger::GetInstance().log("[Server::Listen] listening for requests", debug_level::INFO);
 	bool running = true;
 	while(running){
 		messenger.Receive();
@@ -200,6 +211,7 @@ void Server::Listen(){
 
 
 bool Server::DoRequest(Request request){
+	Logger::GetInstance().log("[Server::DoRequest] processing request: " + std::string(request_text[request->type]), debug_level::DEBUG);
 	CheckRequest("DoRequest", request);
 	// Need to add try catch block and behavior within for each exception type so
 	// the server doesn't crash on failure
@@ -245,6 +257,7 @@ bool Server::DoRequest(Request request){
 		}
 	}
 	catch(const sql::SQLDataException &sd_except){
+		Logger::GetInstance().log("[Server::DoRequest] SQL exception: " + std::string(sd_except.what()), debug_level::ERROR);
 		std::cerr << "Failed to dispatch request " << request_text[request->type] << " with parameters <";
 		for(int i = 0; i < request->parameters.size(); i += 1){
 			std::cerr << " " << request->parameters[i];
@@ -253,6 +266,7 @@ bool Server::DoRequest(Request request){
 		Respond(request, "100");
 	}
 	catch(const std::length_error &len_err){
+		Logger::GetInstance().log("[Server::DoRequest] Length error: " + std::string(len_err.what()), debug_level::ERROR);
 		std::cerr << "Failed to dispatch request " << request_text[request->type] << " with parameters <";
 		for(int i = 0; i < request->parameters.size(); i += 1){
 			std::cerr << " " << request->parameters[i];
@@ -261,6 +275,7 @@ bool Server::DoRequest(Request request){
 		Respond(request, "600");
 	}
 	catch(invalid_state_exception &is_exception){
+		Logger::GetInstance().log("[Server::DoRequest] Invalid state exception: " + std::string(is_exception.what()), debug_level::ERROR);
 		std::cerr << "Failed to dispatch request " << request_text[request->type] << " with parameters <";
 		for(int i = 0; i < request->parameters.size(); i += 1){
 			std::cerr << " " << request->parameters[i];
@@ -269,6 +284,7 @@ bool Server::DoRequest(Request request){
 		Respond(request, "500");
 	}
 	catch(empty_response_parameter_exception &erp_exception){
+		Logger::GetInstance().log("[Server::DoRequest] Empty response parameter exception: " + std::string(erp_exception.what()), debug_level::WARN);
 		std::cerr << "Failed to dispatch request " << request_text[request->type] << " with parameters <";
 		for(int i = 0; i < request->parameters.size(); i += 1){
 			std::cerr << " " << request->parameters[i];
@@ -277,6 +293,7 @@ bool Server::DoRequest(Request request){
 		Respond(request, "200");
 	}
 	catch(std::runtime_error &rt_err){
+		Logger::GetInstance().log("[Server::DoRequest] Runtime error: " + std::string(rt_err.what()), debug_level::ERROR);
 		std::cerr << "Failed to dispatch request " << request_text[request->type] << " with parameters <";
 		for(int i = 0; i < request->parameters.size(); i += 1){
 			std::cerr << " " << request->parameters[i];
@@ -284,6 +301,7 @@ bool Server::DoRequest(Request request){
 		std::cerr << ">; a runtime error ocured.\n\t" << rt_err.what() << "\n";
 	}
 	catch(...){
+		Logger::GetInstance().log("[Server::DoRequest] Unknown exception", debug_level::ERROR);
 		std::exception_ptr exception = std::current_exception();
 		std::cerr << "Failed to dispatch request " << request_text[request->type] << " with parameters <";
 		for(int i = 0; i < request->parameters.size(); i += 1){
@@ -297,7 +315,9 @@ bool Server::DoRequest(Request request){
 }
 
 void Server::AddToGroceryList(vector<pair<string, float>> groceriesAndMinimums){
+	Logger::GetInstance().log("[Server::AddToGroceryList] adding to grocery list, count: " + std::to_string(groceriesAndMinimums.size()), debug_level::DEBUG);
 	if(groceriesAndMinimums.empty()){
+		Logger::GetInstance().log("[Server::AddToGroceryList] Empty grocery list provided", debug_level::WARN);
 		throw empty_parameter_exception("[Server::AddToGroceryList(<|| " + 
 				std::to_string(groceriesAndMinimums.size()) + 
 				" ||>)] empty grocery list.");
@@ -315,6 +335,7 @@ void Server::AddToGroceryList(vector<pair<string, float>> groceriesAndMinimums){
 }
 
 void Server::AddIngredients(Request request){
+	Logger::GetInstance().log("[Server::AddIngredients] adding ingredients, count: " + std::to_string(request->parameters.size()), debug_level::INFO);
 	for(auto it = request->parameters.begin(); it != request->parameters.end(); it += 3 ){
 		string ingredient = *it;
 		float amount = std::stof(*(it + 1));
@@ -330,6 +351,7 @@ void Server::AddIngredients(Request request){
 }
 
 void Server::RemoveIngredients(Request request){
+	Logger::GetInstance().log("[Server::RemoveIngredients] removing ingredients: " + std::to_string(request->parameters.size()), debug_level::INFO);
 	CheckRequest("RemoveIngredients", request);
 	for(string ingredient : request->parameters){
 		db->DeleteIngredient(ingredient);
@@ -338,6 +360,7 @@ void Server::RemoveIngredients(Request request){
 }
 
 void Server::Reserve(Request request){
+	Logger::GetInstance().log("[Server::Reserve] reserving ingredients", debug_level::INFO);
 	CheckRequest("Reserve", request);
 	vector<string> ingredients;
 	vector<float> amounts;
@@ -369,6 +392,7 @@ void Server::Reserve(Request request){
 }
 
 void Server::Release(Request request){
+	Logger::GetInstance().log("[Server::Release] releasing ingredients", debug_level::INFO);
 	CheckRequest("Release", request);
 	vector<string> remainingItems;
 	vector<float> remainingAmounts;
@@ -403,6 +427,7 @@ void Server::Release(Request request){
 }
 
 void Server::AddRecipe(Request request){
+	Logger::GetInstance().log("[Server::AddRecipe] adding recipe: " + request->parameters[0], debug_level::INFO);
 	CheckRequest("AddRecipe", request);
 	string name = request->parameters[0];
 	string instructions = request->parameters[1];
@@ -411,6 +436,7 @@ void Server::AddRecipe(Request request){
 }
 
 void Server::RemoveRecipe(Request request){
+	Logger::GetInstance().log("[Server::RemoveRecipe] removing recipe: " + request->parameters[0], debug_level::INFO);
 	CheckRequest("RemoveRecipe", request);
 	db->DeleteRecipe(request->parameters[0]);
 	Respond(request, "OK");
@@ -418,6 +444,7 @@ void Server::RemoveRecipe(Request request){
 
 
 void Server::RespondWithGroceries(Request request){
+	Logger::GetInstance().log("[Server::RespondWithGroceries] responding with groceries", debug_level::DEBUG);
 	CheckRequest("RespondWithGroceries", request);
 	string response;
 	for(auto it = groceries.begin(); it != groceries.end(); it ++){
@@ -434,6 +461,7 @@ void Server::RespondWithGroceries(Request request){
 
 
 void Server::GetIngredientsAndInstructions(Request request){
+	Logger::GetInstance().log("[Server::GetIngredientsAndInstructions] getting ingredients and instructions", debug_level::INFO);
 	CheckRequest("GetIngredientsAndInstructions", request);
 	vector<string> instructions = db->GetInstructions(request->parameters);
 	vector<string> ingredients;
@@ -491,6 +519,7 @@ void Server::RespondWithIngredientsAndInstructions(vector<string> ingredients,
 
 
 void Server::MatchRecipe(Request request){
+	Logger::GetInstance().log("[Server::MatchRecipe] matching recipes", debug_level::INFO);
 	CheckRequest("MatchRecipe", request);
 	vector<string> results = db->GetRecipes(request->parameters);
 	string response = "";
@@ -527,6 +556,7 @@ void Server::Respond(Request request, string message){
 }
 
 void Server::SendToNthConnection(string message, int n){
+	Logger::GetInstance().log("[Server::SendToNthConnection] sending to connection index: " + std::to_string(n), debug_level::DEBUG);
 	if(message.empty()){
 		throw empty_response_exception("[Server::SendToNthConnection('', " + 
 			   std::to_string(n) + ")] empty message.");

@@ -2,11 +2,15 @@
 #pragma once
 #include "NetCommunicator.hpp"
 #include <boost/date_time/time_defs.hpp>
+#include <boost/system/detail/error_code.hpp>
 #include <memory>
+
+
 
 class TCPCommunicator : public Communicator, std::enable_shared_from_this<TCPCommunicator>{
 
 	private:
+		const AcceptConfig acc_con;
 		std::unique_ptr<boost::asio::ip::tcp::socket> socket;
 		std::unique_ptr<boost::asio::ip::tcp::acceptor> acceptor;
 		boost::asio::ip::tcp::endpoint remote_end;
@@ -15,7 +19,15 @@ class TCPCommunicator : public Communicator, std::enable_shared_from_this<TCPCom
 		
 		void initializeSocket(boost::asio::io_context& con);
 		void initializeAcceptor(boost::asio::io_context& con, unsigned short port);
-		void validateSocketState() const;
+		SocketStateError validateSocketState() const noexcept override;
+		SocketStateError categorizeSocketError(const boost::system::error_code& err) const noexcept override;
+		
+		void HandleSend(boost::shared_ptr<std::string> message,
+				const boost::system::error_code &err, 
+				std::size_t transferred) override;
+		
+		void StoreMessage(const boost::system::error_code &err,
+				std::size_t transferred) override;
 		
 	public:
 		
@@ -29,6 +41,9 @@ class TCPCommunicator : public Communicator, std::enable_shared_from_this<TCPCom
 		bool isConnected() const { return connected && socket && socket->is_open(); }
 
 		void Accept();
+		void Accept(const AcceptConfig& config);
+		AcceptErrorType categorizeAcceptError(const boost::system::error_code& err);
+
 		
 		void Connect(boost::asio::io_context & context, std::string address) override;
 		void Connect(boost::asio::io_context & context, std::string address, unsigned int port) override;
@@ -45,6 +60,7 @@ class TCPCommunicator : public Communicator, std::enable_shared_from_this<TCPCom
 			{
 				recv_buffer = std::make_unique<std::string>(std::string("0", 10));
 				outgoing = boost::make_shared<std::string>(std::string(" ", 1024));
+				InitializeTimers(*con);
 			}
 
 
@@ -59,6 +75,7 @@ class TCPCommunicator : public Communicator, std::enable_shared_from_this<TCPCom
 			{
 				recv_buffer = std::make_unique<std::string>(std::string("0", 10));
 				outgoing = boost::make_shared<std::string>(std::string(" ", 1024));
+				InitializeTimers(*con);
 			}
 
 	TCPCommunicator(std::shared_ptr<boost::asio::io_context> con, std::string address,  unsigned short port):
@@ -71,6 +88,7 @@ class TCPCommunicator : public Communicator, std::enable_shared_from_this<TCPCom
 			{
 				recv_buffer = std::make_unique<std::string>(std::string("0", 10));
 				outgoing = boost::make_shared<std::string>(std::string("", 1024));
+				InitializeTimers(*con);
 			}
 
 		TCPCommunicator(TCPCommunicator &other):socket(std::move( other.socket )), acceptor(std::move(other.acceptor)), remote_end(other.remote_end){};
