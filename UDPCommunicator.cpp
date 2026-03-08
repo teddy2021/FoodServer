@@ -6,6 +6,7 @@
 #include <boost/bind/bind.hpp>
 #include <boost/lexical_cast.hpp>
 
+#include <cmath>
 #include <cstddef>
 #include <regex>
 #include <stdexcept>
@@ -13,6 +14,7 @@
 #include <string>
 
 #include "UDPCommunicator.hpp"
+#include "CommunicatorExceptions.hpp"
 #include "Enums.hpp"
 #include "Logger.hpp"
 using boost::asio::buffer;
@@ -188,6 +190,9 @@ void UDPCommunicator::Send(string message){
 	*outgoing = message;
 	outgoing->shrink_to_fit();
 	sendStartTime = std::chrono::steady_clock::now();
+	SetSendTimeout([](const OperationTimeoutException& e){
+			Logger::GetInstance().log("[UDPCommunicator::Send] operation timed out.", debug_level::ERROR);
+			});
 	socket->async_send_to(buffer(*outgoing),
 			remote_end,
 			boost::bind(&UDPCommunicator::HandleSend,
@@ -220,6 +225,9 @@ void UDPCommunicator::Reply(string message){
 	outgoing->shrink_to_fit();
 	*outgoing = message;
 	sendStartTime = std::chrono::steady_clock::now();
+	SetSendTimeout([](const OperationTimeoutException& e){
+			Logger::GetInstance().log("[UDPCommunicator::Reply] operation timed out", debug_level::ERROR);
+			});
 	socket->async_send_to(buffer(*outgoing),
 			remote_end,	
 			boost::bind(&UDPCommunicator::HandleSend,
@@ -243,6 +251,9 @@ void UDPCommunicator::Receive(){
 	receiveStartTime = std::chrono::steady_clock::now();
 	if(!connected){
 		Logger::GetInstance().log("[UDPCommunicator::Receive] Receiving on unconnected socket.", debug_level::DEBUG);
+		SetReceiveTimeout([](const OperationTimeoutException e){
+			Logger::GetInstance().log("[UDPCommunicator::Receive] operation timed out", debug_level::ERROR);
+			});
 	socket->async_receive_from(buffer(*recv_buffer),
 			remote_end,
 			boost::bind(&UDPCommunicator::StoreMessage, 
@@ -252,6 +263,9 @@ void UDPCommunicator::Receive(){
 	}
 	else{
 		Logger::GetInstance().log("[UDPCommunicator::Receive] Receiving on connected socket.", debug_level::DEBUG);
+		SetReceiveTimeout([](const OperationTimeoutException e){
+			Logger::GetInstance().log("[UDPCommunicator::Receive] operation timed out", debug_level::ERROR);
+			});
 		socket->async_receive(buffer(*recv_buffer),
 				boost::bind(&UDPCommunicator::StoreMessage,
 					this,
@@ -265,6 +279,7 @@ void UDPCommunicator::Receive(){
 void UDPCommunicator::StoreMessage(const boost::system::error_code &err, 
 		std::size_t transferred){
 	Logger::GetInstance().log("[UDPCommunicator::StoreMessage] storing message.", debug_level::INFO);
+	CancelReceiveTimer();
 	std::regex pattern("^u[:digit:]+$", std::regex_constants::extended);
 	if(!err && std::regex_match(*recv_buffer, pattern)){
 		connected = true;

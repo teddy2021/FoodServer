@@ -293,29 +293,23 @@ TEST_CASE("Testing UDPCommunicator", "[UDP]"){
 		com1->Connect(*con, "localhost", 8081);
 		com2->Connect(*con, "localhost", 8080);
 
-		con->run();
 		string msg = "";
 		string msg1 = "";
 		string msg2 = "";
-		con->restart();
 
 		msg = "asdf";
 		CHECK_NOTHROW(com1->Send(msg));
 		CHECK_NOTHROW(com2->Receive());
-		con->run();
 		CHECK_NOTHROW(msg2 = com2->GetMessage());
 		CAPTURE(msg, msg2);
 		CHECK_THAT(msg, Equals( msg2));
-		con->restart();
 
 		msg = "fdsa";
 		CHECK_NOTHROW(com2->Send(msg));
 		CHECK_NOTHROW(com1->Receive());
-		con->run();
 		CHECK_NOTHROW(msg2 = com1->GetMessage());
 		CAPTURE(msg, msg2);
 		CHECK_THAT(msg, Equals(msg2));
-		con->restart();
 
 		auto com3 = std::make_unique<UDPCommunicator>(con);
 		com3->Connect(*con, "localhost", 2020);
@@ -323,13 +317,12 @@ TEST_CASE("Testing UDPCommunicator", "[UDP]"){
 		CHECK_NOTHROW(com3->Send(msg));
 		CHECK_NOTHROW(com1->Receive());
 		CHECK_NOTHROW(com2->Receive());
-		con->run();
 		msg1 = com1->GetMessage();
 		msg2 = com2->GetMessage();
-		CAPTURE(msg1, msg);
 		CHECK_THAT(msg1, !Equals(msg));
-		CAPTURE(msg2, msg);
+		CAPTURE(msg1, msg);
 		CHECK_THAT(msg2, !Equals(msg));
+		CAPTURE(msg2, msg);
 	}
 
 	SECTION("UDP basic reply", "[UDP][REPLY]"){
@@ -338,7 +331,6 @@ TEST_CASE("Testing UDPCommunicator", "[UDP]"){
 
 		com1->Connect(*con, "localhost", 8081);
 
-		con->run();
 		string msg;
 		com1->Send("1234");
 		com2->Receive();

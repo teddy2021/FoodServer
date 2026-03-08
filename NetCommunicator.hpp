@@ -78,42 +78,42 @@ class Communicator{
 
 		template<typename Handler>
 		void SetSendTimeout(Handler&& handler){
-			if(sendTimer){
+			if(sendTimer && opConfig.sendTimeout.count() > 0){
 				sendTimer->cancel();
 				sendTimer->expires_from_now(boost::posix_time::milliseconds(opConfig.sendTimeout.count()));
-				sendTimer->async_wait([this, handler = std::forward<Handler>(handler)](const boost::system::error_code& err){
+				sendTimer->async_wait([this, handler = std::move(handler)](const boost::system::error_code& err){
 					if(err == boost::asio::error::operation_aborted) return;
 					auto elapsed = std::chrono::steady_clock::now() - *sendStartTime;
 					auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed);
-					HandleTimeout("Send", ms, std::forward<Handler>(handler));
+					HandleTimeout("Send", ms, std::move(handler));
 				});
 			}
 		}
 
 		template<typename Handler>
 		void SetReceiveTimeout(Handler&& handler){
-			if(receiveTimer){
+			if(receiveTimer && opConfig.receiveTimeout.count() > 0){
 				receiveTimer->cancel();
 				receiveTimer->expires_from_now(boost::posix_time::milliseconds(opConfig.receiveTimeout.count()));
-				receiveTimer->async_wait([this, handler = std::forward<Handler>(handler)](const boost::system::error_code& err){
+				receiveTimer->async_wait([this, handler = std::move(handler)](const boost::system::error_code& err){
 					if(err == boost::asio::error::operation_aborted) return;
 					auto elapsed = std::chrono::steady_clock::now() - *receiveStartTime;
 					auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed);
-					HandleTimeout("Receive", ms, std::forward<Handler>(handler));
+					HandleTimeout("Receive", ms, std::move(handler));
 				});
 			}
 		}
 
 		template<typename Handler>
 		void SetConnectTimeout(Handler&& handler){
-			if(connectTimer){
+			if(connectTimer && opConfig.connectTimeout.count() > 0){
 				connectTimer->cancel();
 				connectTimer->expires_from_now(boost::posix_time::milliseconds(opConfig.connectTimeout.count()));
-				connectTimer->async_wait([this, handler = std::forward<Handler>(handler)](const boost::system::error_code& err){
+				connectTimer->async_wait([this, handler = std::move(handler)](const boost::system::error_code& err){
 					if(err == boost::asio::error::operation_aborted) return;
 					auto elapsed = std::chrono::steady_clock::now() - *connectStartTime;
 					auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed);
-					HandleTimeout("Connect", ms, std::forward<Handler>(handler));
+					HandleTimeout("Connect", ms, std::move(handler));
 				});
 			}
 		}
