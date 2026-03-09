@@ -962,6 +962,31 @@ TEST_CASE("NetMessenger basic communication", "[NM]") {
 			REQUIRE_NOTHROW(messenger.Send(unicode_msg));
 		}
 		
+		SECTION("Unicode round-trip") {
+			auto& messenger1 = fixture.createMessenger(tcp, 0);
+			auto& messenger2 = fixture.createMessenger(tcp, 1);
+			auto recipient1 = fixture.createRecipient(0);
+			auto recipient2 = fixture.createRecipient(1);
+			
+			std::vector<std::string> unicode_messages = {
+				"Hello 世界 🌍",
+				"Привет мир",
+				"こんにちは",
+				"Ελληνικά",
+				"العربية",
+				"emoji test 🗺️⭐💯",
+				"mixed Ünicode: café naïve résumé"
+			};
+			
+			for(const auto& msg : unicode_messages){
+				REQUIRE_NOTHROW(messenger1.SendTo(msg, recipient1));
+				REQUIRE_NOTHROW(messenger2.Receive());
+				auto received = messenger2.GetFirstMessage();
+				CAPTURE(msg, received);
+				REQUIRE(received == msg);
+			}
+		}
+		
 		SECTION("Special characters") {
 			std::string special_msg = "Hello|World\n\t\r";
 			REQUIRE_NOTHROW(messenger.Send(special_msg));
@@ -1114,6 +1139,46 @@ TEST_CASE("Testing multiple UDP agents", "[NM][UDP][MULTI]"){
 			agents[i] = nullptr;
 			addrs[i] = nullptr;
 		}
+	}
+
+	TEST_CASE("Testing UDP Unicode round-trip", "[NM][UDP][UNICODE]"){
+		Logger::GetInstance().SetLevel(debug_level::ERROR);
+		
+		auto io_context = std::make_shared<boost::asio::io_context>();
+		
+		auto messenger1 = std::make_unique<NetMessenger>(udp, 0xC001);
+		auto messenger2 = std::make_unique<NetMessenger>(udp, 0xC002);
+		messenger1->Connect(*io_context, "localhost", 0xC001);
+		messenger2->Connect(*io_context, "localhost", 0xC002);
+		auto recipient1 = std::make_shared<recipient>("localhost", 0xC001);
+		auto recipient2 = std::make_shared<recipient>("localhost", 0xC002);
+		
+		std::thread io_thread([io_context](){
+			io_context->run();
+		});
+		
+		std::vector<std::string> unicode_messages = {
+			"Hello 世界 🌍",
+			"Привет мир",
+			"こんにちは",
+			"Ελληνικά",
+			"العربية",
+			"emoji test 🗺️⭐💯",
+			"mixed Ünicode: café naïve résumé",
+			"test|with|pipe",
+			"multiline\ntest\r\ndata"
+		};
+		
+		for(size_t i = 0; i < unicode_messages.size(); i += 2){
+			const auto& msg = unicode_messages[i];
+			REQUIRE_NOTHROW(messenger1->SendTo(msg, recipient2));
+			REQUIRE_NOTHROW(messenger2->Receive());
+			auto received = messenger2->GetFirstMessage();
+			CAPTURE(msg, received);
+			REQUIRE(received == msg);
+		}
+		
+		io_thread.join();
 	}
 
 typedef struct{ string name;

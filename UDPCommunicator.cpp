@@ -101,7 +101,6 @@ string UDPCommunicator::GetMessage(){
 	if(out.empty()){
 		return "";
 	}
-	out.resize(strlen(out.c_str()));
 	return out;
 }
 

@@ -35,12 +35,6 @@ string MessageManager::Pop(){
 			break;
 		}
 	}
-	string tmp(msg);
-	while(tmp.size() != strlen(tmp.c_str())){
-		int pos = strlen(tmp.c_str()) - 1;
-		tmp.erase(pos, 1);
-	}
-	msg = tmp;
 	return msg;
 }
 
@@ -80,9 +74,6 @@ void MessageManager::StoreMessage(int index, string message){
 	}
 	if(status.empty() || status[index] != in_use ){
 		throw invalid_state_exception("[MessageManager::StoreMessage(" + std::to_string(index) + ")] Attempting to store into a buffer that is not reserved");
-	}
-	if(strlen(message.c_str())!= message.size()){
-		throw std::runtime_error("[StoreMessage(" + std::to_string(index) + ", <corrupted message>)]: message has null bytes prior to string terminus.");
 	}
 	buffer[index] = std::make_shared<string>(message);
 	status[index] = storing;

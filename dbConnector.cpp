@@ -246,7 +246,7 @@ DBConnector::DBConnector(){
 	pfile.close();
 
 	driver = sql::mariadb::get_driver_instance();
-	sql::SQLString url = ("jdbc:mariadb://localhost:3306/FoodServer");
+	sql::SQLString url = ("jdbc:mariadb://localhost:3306/FoodServer?charset=utf8mb4");
 	sql::Properties properties({
 			{"user", "foodserver"},
 			{"password", res}});
@@ -271,7 +271,11 @@ DBConnector::DBConnector(string address){
 	pfile.close();
 
 	driver = sql::mariadb::get_driver_instance();
-	sql::SQLString url = address;
+	std::string url_str = address;
+	if(url_str.find("charset=") == std::string::npos){
+		url_str += "?charset=utf8mb4";
+	}
+	sql::SQLString url = url_str;
 	sql::Properties properties({
 			{"user", "foodserver"},
 			{"password", res}});
