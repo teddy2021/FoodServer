@@ -46,7 +46,7 @@ class UDPCommunicator : public Communicator{
 			prt(0xBEEF),
 			msgSize(maxMessage),
 			io_context_ref(context){
-				recv_buffer = std::make_unique<std::string>(std::string("0", msgSize));
+				recv_buffer = std::make_unique<std::string>();
 				recv_buffer->reserve(msgSize);
 				outgoing = boost::make_shared<std::string>(std::string("",1024));
 				InitializeTimers(*context);
@@ -58,7 +58,7 @@ class UDPCommunicator : public Communicator{
 			socket(std::make_unique<boost::asio::ip::udp::socket>(*context, boost::asio::ip::udp::endpoint(boost::asio::ip::udp::v4(), port))),
 			msgSize(maxMessage),
 			io_context_ref(context){
-				recv_buffer = std::make_unique<std::string>(std::string("0", msgSize));
+				recv_buffer = std::make_unique<std::string>();
 				recv_buffer->reserve(msgSize);
 				outgoing = boost::make_shared<std::string>(std::string("",1024));
 				InitializeTimers(*context);
@@ -70,7 +70,7 @@ class UDPCommunicator : public Communicator{
 			socket(std::make_unique<boost::asio::ip::udp::socket>(*context, boost::asio::ip::udp::endpoint(boost::asio::ip::make_address(address), port))), 
 			msgSize(maxMessage),
 			io_context_ref(context){
-				recv_buffer = std::make_unique<std::string>(std::string("0", msgSize));
+				recv_buffer = std::make_unique<std::string>();
 				recv_buffer->reserve(msgSize);
 				outgoing = boost::make_shared<std::string>(std::string("",1024));
 				InitializeTimers(*context);

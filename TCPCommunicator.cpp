@@ -373,13 +373,19 @@ string TCPCommunicator::GetMessage(){
 }
 
 string TCPCommunicator::remote_address(){
-	validateSocketState();
+	auto state = validateSocketState();
+	if(state != SocketStateError::None){
+		throw ConnectionException(state, "[TCPCommunicator::remote_address]", "Socket not in valid state");
+	}
 	return socket->remote_endpoint().address().to_string();
 }
 
 
 unsigned short TCPCommunicator::remote_port(){
-	validateSocketState();
+	auto state = validateSocketState();
+	if(state != SocketStateError::None){
+		throw ConnectionException(state, "[TCPCommunicator::remote_port]", "Socket not in valid state");
+	}
 	return static_cast<unsigned short>(socket->remote_endpoint().port());
 }
 

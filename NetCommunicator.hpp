@@ -99,6 +99,7 @@ class Communicator{
 					if(err == boost::asio::error::operation_aborted) return;
 					auto elapsed = std::chrono::steady_clock::now() - *receiveStartTime;
 					auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed);
+					ResetBuffer();
 					HandleTimeout("Receive", ms, std::move(handler));
 				});
 			}

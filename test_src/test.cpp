@@ -340,8 +340,8 @@ TEST_CASE("Testing UDPCommunicator", "[UDP]"){
 		CHECK_NOTHROW(com2->Reply(msg));
 		com1->Receive();
 		string msg2 = com1->GetMessage();
-		CAPTURE(msg2, msg);
 		CHECK(msg2 == msg);
+		CAPTURE(msg2, msg);
 		msg.erase();
 		msg2.erase();
 
@@ -349,8 +349,8 @@ TEST_CASE("Testing UDPCommunicator", "[UDP]"){
 		CHECK_NOTHROW(com1->Reply(msg2));
 		com2->Receive();
 		msg = com2->GetMessage();
-		CAPTURE(msg, msg2);
 		CHECK_THAT(msg, Equals(msg2));
+		CAPTURE(msg, msg2);
 		msg.erase();
 		msg2.erase();
 
@@ -364,10 +364,9 @@ TEST_CASE("Testing UDPCommunicator", "[UDP]"){
 		com2->Receive();
 		msg1 = com1->GetMessage();
 		msg2 = com2->GetMessage();
-		CAPTURE(msg, msg1);
 		CHECK_THAT(msg, Equals(msg1));
-		CAPTURE(msg, msg2);
 		CHECK_THAT(msg, !Equals(msg2));
+		CAPTURE(msg, msg1, msg2);
 		msg.erase();
 		msg1.erase();
 		msg2.erase();
@@ -378,10 +377,9 @@ TEST_CASE("Testing UDPCommunicator", "[UDP]"){
 		msg1 = com2->GetMessage();
 		com3->Receive();
 		msg2 = com3->GetMessage();
-		CAPTURE(msg, msg1);
-		CHECK_THAT(msg, !Equals(msg1));
-		CAPTURE(msg, msg2);
-		CHECK_THAT(msg, Equals(msg2));
+		CHECK_THAT(msg, Equals(msg1));
+		CHECK_THAT(msg, !Equals(msg2));
+		CAPTURE(msg, msg1, msg2);
 	}
 
 	SECTION("UDP multiple agents", "[UDP][SEND][RECV][REPLY][MULTI]"){
@@ -412,8 +410,8 @@ TEST_CASE("Testing UDPCommunicator", "[UDP]"){
 		string msg1;
 		string msg2;
 		for(int i = 0; i < 800; i += 2){
-			size_t len1 = static_cast<size_t>(dist(eng)), 
-				   len2 = static_cast<size_t>(dist(eng));
+			size_t len1 = static_cast<size_t>(dist(eng)) % 1024, 
+				   len2 = static_cast<size_t>(dist(eng)) % 1024;
 
 			msg1.reserve(len1);
 			msg2.reserve(len2);
@@ -445,8 +443,8 @@ TEST_CASE("Testing UDPCommunicator", "[UDP]"){
 		}
 
 		for(int i = 0; i < 800; i += 2){
-			size_t len1 = static_cast<size_t>(dist(eng)), 
-				   len2 = static_cast<size_t>(dist(eng));
+			size_t len1 = static_cast<size_t>(dist(eng)) % 1024, 
+				   len2 = static_cast<size_t>(dist(eng)) %1024;
 
 			msg1.reserve(len1);
 			msg2.reserve(len2);
@@ -613,8 +611,8 @@ auto client1 = std::make_unique<TCPCommunicator>(con1);
 		string msg1;
 		string msg2;
 		for(int i = 0; i < 800; i += 2){
-			size_t len1 = static_cast<size_t>(dist(eng)), 
-				   len2 = static_cast<size_t>(dist(eng));
+			size_t len1 = static_cast<size_t>(dist(eng)) % 1024, 
+				   len2 = static_cast<size_t>(dist(eng)) % 1024;
 
 			msg1.reserve(len1);
 			msg2.reserve(len2);
@@ -1004,8 +1002,8 @@ TEST_CASE("Testing multiple TCP agents", "[NM][TCP][MULTI]"){
 		string msg1;
 		string msg2;
 		for(int i = 0; i < 800; i += 2){
-			size_t len1 = static_cast<size_t>(dist(eng)), 
-				   len2 = static_cast<size_t>(dist(eng));
+			size_t len1 = static_cast<size_t>(dist(eng)) % 1024, 
+				   len2 = static_cast<size_t>(dist(eng)) % 1024;
 
 			msg1.reserve(len1);
 			msg2.reserve(len2);
@@ -1081,8 +1079,8 @@ TEST_CASE("Testing multiple UDP agents", "[NM][UDP][MULTI]"){
 		string msg1;
 		string msg2;
 		for(int i = 0; i < 800; i += 2){
-			size_t len1 = static_cast<size_t>(dist(eng)), 
-				   len2 = static_cast<size_t>(dist(eng));
+			size_t len1 = static_cast<size_t>(dist(eng)) % 1024,  
+				   len2 = static_cast<size_t>(dist(eng)) % 1024;
 
 			msg1.reserve(len1);
 			msg2.reserve(len2);

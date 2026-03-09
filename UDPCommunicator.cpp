@@ -26,7 +26,7 @@ void UDPCommunicator::runContext(){
 	if(io_context_ref->stopped()){
 		io_context_ref->restart();
 	}
-	io_context_ref->run();
+	while(io_context_ref->poll_one()){}
 }
 
 SocketStateError UDPCommunicator::validateSocketState() const noexcept{
@@ -97,10 +97,11 @@ string UDPCommunicator::GetMessage(){
 		throw std::runtime_error("[UDPCommunicator::GetMessage]: null message storage pointer");
 	}
 	string out(*recv_buffer);
-	if(out.size() != strlen(out.c_str())){
-		Logger::GetInstance().log("[UDPCommunicator::GetMessage()]: String size (" + std::to_string(out.size()) + ") != strlen (" + std::to_string(strlen(out.c_str())) + ")", debug_level::ERROR);
-		throw std::runtime_error("[UDPCommunicator::GetMessage()]: String size (" + std::to_string(out.size()) + ") != strlen (" + std::to_string(strlen(out.c_str())) + ")");
+	out.shrink_to_fit();
+	if(out.empty()){
+		return "";
 	}
+	out.resize(strlen(out.c_str()));
 	return out;
 }
 
@@ -249,11 +250,11 @@ void UDPCommunicator::Receive(){
 	
 	ResetBuffer();
 	receiveStartTime = std::chrono::steady_clock::now();
+	SetReceiveTimeout([](const OperationTimeoutException e){
+		Logger::GetInstance().log("[UDPCommunicator::Receive] operation timed out", debug_level::ERROR);
+		});
 	if(!connected){
 		Logger::GetInstance().log("[UDPCommunicator::Receive] Receiving on unconnected socket.", debug_level::DEBUG);
-		SetReceiveTimeout([](const OperationTimeoutException e){
-			Logger::GetInstance().log("[UDPCommunicator::Receive] operation timed out", debug_level::ERROR);
-			});
 	socket->async_receive_from(buffer(*recv_buffer),
 			remote_end,
 			boost::bind(&UDPCommunicator::StoreMessage, 
@@ -263,9 +264,6 @@ void UDPCommunicator::Receive(){
 	}
 	else{
 		Logger::GetInstance().log("[UDPCommunicator::Receive] Receiving on connected socket.", debug_level::DEBUG);
-		SetReceiveTimeout([](const OperationTimeoutException e){
-			Logger::GetInstance().log("[UDPCommunicator::Receive] operation timed out", debug_level::ERROR);
-			});
 		socket->async_receive(buffer(*recv_buffer),
 				boost::bind(&UDPCommunicator::StoreMessage,
 					this,
