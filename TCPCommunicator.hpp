@@ -119,7 +119,7 @@ class TCPCommunicator : public Communicator, std::enable_shared_from_this<TCPCom
 		void Send(std::string message) override;
 		void Reply(std::string message) override;
 		
-		void Receive() override;
+		void Receive(bool async=false) override;
 				std::string remote_address() override;
 		std::string GetMessage() override;
 

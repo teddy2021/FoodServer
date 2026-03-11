@@ -146,7 +146,7 @@ class Communicator{
 		virtual void Send(std::string message){};
 		virtual void SendWithRetry(std::string message, int maxRetries = -1);
 		
-		virtual void Receive(){};
+		virtual void Receive(bool async=false){};
 		virtual std::string remote_address(){return "";};
 		virtual unsigned short remote_port(){return 0;};
 

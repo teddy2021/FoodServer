@@ -14,6 +14,7 @@
 #include <catch2/generators/catch_generators.hpp>
 #include <catch2/generators/catch_generators_random.hpp>
 #include <catch2/generators/catch_generators_adapters.hpp>
+#include <catch2/matchers/catch_matchers.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
 #include <memory>
 #include <stdexcept>
@@ -232,8 +233,8 @@ TEST_CASE("Testing Constructors"){
 	SECTION("Testing Server", "[Server],[Construtor]"){
 		Server s;
 		DBConnector db;
-		auto udp_c = std::make_unique<NetMessenger>(udp, 8080);
-		auto tcp_c = std::make_unique<NetMessenger>(tcp, 8080);
+		auto udp_c = std::make_shared<NetMessenger>(udp, 8080);
+		auto tcp_c = std::make_shared<NetMessenger>(tcp, 8080);
 		CHECK_NOTHROW(s = Server());
 		CHECK_NOTHROW(s = Server());
 		CHECK_NOTHROW(s = Server(*udp_c));
@@ -1175,7 +1176,7 @@ TEST_CASE("Testing multiple UDP agents", "[NM][UDP][MULTI]"){
 			REQUIRE_NOTHROW(messenger2->Receive());
 			auto received = messenger2->GetFirstMessage();
 			CAPTURE(msg, received);
-			REQUIRE(received == msg);
+			REQUIRE_THAT(received, Equals( msg ));
 		}
 		
 		io_thread.join();
@@ -1227,13 +1228,16 @@ TEST_CASE("Testing Server", "[SRV]"){
 		auto udp_com = std::make_unique<NetMessenger>(udp);
 		auto tcp_com = std::make_unique<NetMessenger>(tcp);
 
+		server1->Listen();
 		udp_com->SendTo("0", udp_rec);
 		udp_com->Receive();
 
 		CAPTURE(udp_com->GetFirstMessage());
 		CHECK_THAT(udp_com->GetFirstMessage(), Equals("OK"));
 
+		server2->Listen();
 		tcp_com->SendTo("0", tcp_rec);
+
 		tcp_com->Receive();
 
 		CAPTURE(tcp_com->GetFirstMessage());

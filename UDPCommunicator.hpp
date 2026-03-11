@@ -116,7 +116,7 @@ class UDPCommunicator : public Communicator{
 		void Send(std::string message) override;
 		void Reply(std::string message) override;
 
-		void Receive() override;
+		void Receive(bool async=true) override;
 
 
 		std::string remote_address() override;

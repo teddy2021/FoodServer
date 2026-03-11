@@ -125,7 +125,7 @@ Request Server::ParseRequestType(string type){
 			break;
 		default:
 			std::cout << "\tFAIL\n"; 
-			Logger::GetInstance().log("[Server::ParseRequestType] Unknown request type: " + type, debug_level::WARN);
+			Logger::GetInstance().log("[Server::ParseRequestType] Unknown request type: " + type, debug_level::ERROR);
 			throw invalid_state_exception(string("[Server::ParseRequest(" +
 					   	type + ")]: unknown request type."));
 			break;
@@ -135,6 +135,7 @@ Request Server::ParseRequestType(string type){
 }
 
 Request Server::ParseRequest(string message){
+	Logger::GetInstance().log("[Server::ParseRequest] parsing message: " + message.substr(0, 50), debug_level::DEBUG);
 	vector<string> tokens = Tokenize(message);
 	Request output = ParseRequestType(tokens[0]);
 	vector<string> params(tokens.begin() + 1, tokens.end());
@@ -143,18 +144,22 @@ Request Server::ParseRequest(string message){
 }
 
 void Server::CheckRequest(string fcn, Request request){
+	Logger::GetInstance().log("[Server::CheckRequest] validating request for: " + fcn, debug_level::DEBUG);
 
 	if(NULL == request){
+		Logger::GetInstance().log("[Server::CheckRequest] Null request for: " + fcn, debug_level::ERROR);
 		throw null_request_error(string("[Server::" + fcn + "]: null request."));
 	}
 	requests type = request->type;
 	if( (type != syn && type != finalize && type != stop) && request->parameters.empty()){
 		std::cout << request_text[request->type]<< "\n";
 		Respond(request, "300");
-		throw empty_parameter_exception(string("[Server::" + fcn + "(" +
+		std::string error_msg = string("[Server::" + fcn + "(" +
 					string(request_text[request->type]) + 
 					", <||" + std::to_string(request->parameters.size()) + "||>, " +
-					std::to_string(request->connection) + ")] empty parameter."));
+					std::to_string(request->connection) + ")] empty parameter.");
+		Logger::GetInstance().log("[Server::CheckRequest] " + error_msg, debug_level::ERROR);
+		throw empty_parameter_exception(error_msg);
 	}
 }
 
@@ -317,10 +322,11 @@ bool Server::DoRequest(Request request){
 void Server::AddToGroceryList(vector<pair<string, float>> groceriesAndMinimums){
 	Logger::GetInstance().log("[Server::AddToGroceryList] adding to grocery list, count: " + std::to_string(groceriesAndMinimums.size()), debug_level::DEBUG);
 	if(groceriesAndMinimums.empty()){
-		Logger::GetInstance().log("[Server::AddToGroceryList] Empty grocery list provided", debug_level::WARN);
-		throw empty_parameter_exception("[Server::AddToGroceryList(<|| " + 
+		std::string error_msg = "[Server::AddToGroceryList(<|| " + 
 				std::to_string(groceriesAndMinimums.size()) + 
-				" ||>)] empty grocery list.");
+				" ||>)] empty grocery list.";
+		Logger::GetInstance().log("[Server::AddToGroceryList] " + error_msg, debug_level::ERROR);
+		throw empty_parameter_exception(error_msg);
 	}
 	for(int i = 0; i < groceriesAndMinimums.size(); i += 1){
 		string item = groceriesAndMinimums[i].first;
@@ -495,14 +501,18 @@ void Server::GetIngredientsAndInstructions(Request request){
 
 void Server::RespondWithIngredientsAndInstructions(vector<string> ingredients,
 		vector<string> instructions, Request request){
+	Logger::GetInstance().log("[Server::RespondWithIngredientsAndInstructions] responding with ingredients: " + 
+		std::to_string(ingredients.size()) + ", instructions: " + std::to_string(instructions.size()), debug_level::DEBUG);
 	CheckRequest("RespondWithIngredientsAndInstructions", request);
 	if(ingredients.empty() || instructions.empty()){
-		throw empty_response_parameter_exception(string(
+		std::string error_msg = string(
 					"[Server::RespondWithIngredientsAndInstructions(ingredients: <||" + 
 					std::to_string(ingredients.size()) + 
 				   "||>, instructions: <||" + std::to_string(
 					   instructions.size()
-					   ) + "||> )] empty parameter.")); 
+					   ) + "||> )] empty parameter.");
+		Logger::GetInstance().log("[Server::RespondWithIngredientsAndInstructions] " + error_msg, debug_level::ERROR);
+		throw empty_response_parameter_exception(error_msg);
 	}
 	string response;
 	for(int i = 0; i < ingredients.size(); i += 1){
@@ -536,10 +546,13 @@ void Server::MatchRecipe(Request request){
 }
 
 void Server::RespondWithRecipes(vector<string> recipes, Request request){
+	Logger::GetInstance().log("[Server::RespondWithRecipes] responding with recipes: " + std::to_string(recipes.size()), debug_level::DEBUG);
 	CheckRequest("RespondWithRecipes", request);
 	if(recipes.empty()){
-		throw empty_response_parameter_exception(string("[Server::RespondWithRecipes(<||" +  
-					std::to_string(recipes.size()) + "||>)] empty parameter."));
+		std::string error_msg = string("[Server::RespondWithRecipes(<||" +  
+					std::to_string(recipes.size()) + "||>)] empty parameter.");
+		Logger::GetInstance().log("[Server::RespondWithRecipes] " + error_msg, debug_level::ERROR);
+		throw empty_response_parameter_exception(error_msg);
 	}
 	if(recipes.size() > 0){
 		string response;
@@ -552,20 +565,25 @@ void Server::RespondWithRecipes(vector<string> recipes, Request request){
 }
 
 void Server::Respond(Request request, string message){
+	Logger::GetInstance().log("[Server::Respond] sending response to connection: " + std::to_string(request->connection), debug_level::DEBUG);
 	SendToNthConnection(message, request->connection);
 }
 
 void Server::SendToNthConnection(string message, int n){
 	Logger::GetInstance().log("[Server::SendToNthConnection] sending to connection index: " + std::to_string(n), debug_level::DEBUG);
 	if(message.empty()){
-		throw empty_response_exception("[Server::SendToNthConnection('', " + 
-			   std::to_string(n) + ")] empty message.");
+		std::string error_msg = "[Server::SendToNthConnection('', " + 
+			   std::to_string(n) + ")] empty message.";
+		Logger::GetInstance().log("[Server::SendToNthConnection] " + error_msg, debug_level::ERROR);
+		throw empty_response_exception(error_msg);
 	}
 	if(n < 0 || n > connections.size()){
-		throw std::out_of_range(string("[Server::SendToNthConnection(" + message + 
+		std::string error_msg = string("[Server::SendToNthConnection(" + message + 
 					", " + std::to_string(n) + ")]: " + std::to_string(n) +	
 					" out of bounds for range of " + 
-					std::to_string(connections.size()) + "."));
+					std::to_string(connections.size()) + ".");
+		Logger::GetInstance().log("[Server::SendToNthConnection] " + error_msg, debug_level::ERROR);
+		throw std::out_of_range(error_msg);
 	}
 	if(n < connections.size() && n >= 0){
 		Recipient addr;

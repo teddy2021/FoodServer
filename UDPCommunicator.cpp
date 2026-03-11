@@ -239,7 +239,7 @@ void UDPCommunicator::Reply(string message){
 }
 
 
-void UDPCommunicator::Receive(){
+void UDPCommunicator::Receive(bool async){
 	Logger::GetInstance().log("[UDPCommunicator::Receive] receiving", debug_level::DEBUG);
 	
 	auto s_state = validateSocketState();
@@ -262,12 +262,18 @@ void UDPCommunicator::Receive(){
 				boost::asio::placeholders::bytes_transferred));
 	}
 	else{
+		size_t transferred;
 		Logger::GetInstance().log("[UDPCommunicator::Receive] Receiving on connected socket.", debug_level::DEBUG);
-		socket->async_receive(buffer(*recv_buffer),
+		if(async){
+			socket->async_receive(buffer(*recv_buffer),
 				boost::bind(&UDPCommunicator::StoreMessage,
 					this,
 					boost::asio::placeholders::error,
 					boost::asio::placeholders::bytes_transferred));
+		}
+		else{
+			while((transferred = socket->receive(buffer(*recv_buffer))) == 0){}
+		}
 	}
 	updateLastActivity();
 	runContext();

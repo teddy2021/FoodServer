@@ -1,5 +1,7 @@
 
 #include <boost/asio.hpp>
+#include <climits>
+#include <cmath>
 #include <exception>
 #include <string>
 #include <stdexcept>
@@ -103,21 +105,29 @@ void NetMessenger::Receive(){
 	}
 	if(comms->GetProtocol() == udp){
 		string m_size = comms->GetMessage();
+		if(m_size.empty()){
+			Logger::GetInstance().log("[NetMessenger::Receive 2] message size receieved was empty.", debug_level::ERROR);
+			throw std::runtime_error("[NetMessenger::Receive 2] message size receieved was empty.");
+		}
 		int size = 0;
 		try{  
 			size = std::stoi(m_size);
 		} 
 		catch (std::invalid_argument e){
-			throw std::runtime_error("[NetMessenger::Receive 1] the value of '" + m_size + "' is not a valid size.");
+			Logger::GetInstance().log("[NetMessenger::Receive 1.1] the value of '" + m_size + "' is not a valid size", debug_level::ERROR);
+			throw std::runtime_error("[NetMessenger::Receive 1.1] the value of '" + m_size + "' is not a valid size.");
 		}
 		catch (std::runtime_error e){
-			throw std::runtime_error("[NetMessenger::Receive 1] an error ocurred when reading the message size.\n\t" + string(e.what()));
+			Logger::GetInstance().log("[NetMessenger::Receive 1.2] an error ocurred when reading the message size.\n\t" + string(e.what()), debug_level::ERROR);
+			throw std::runtime_error("[NetMessenger::Receive 1.2] an error ocurred when reading the message size.\n\t" + string(e.what()));
 		}
 		catch (std::out_of_range e){
-			throw std::runtime_error("[NetMessenger::Receive 1] a size of '" + m_size + "' is way too big.");
+			Logger::GetInstance().log("[NetMessenger::Receive 1.3] a size of '" + m_size + "' is way too big.", debug_level::ERROR);
+			throw std::runtime_error("[NetMessenger::Receive 1.3] a size of '" + m_size + "' is way too big.");
 		}
 		if(size < 0 || size > comms->maxSize()){
-			throw std::runtime_error("[NetMessenger::Receive 1] packet received larger than allowed.");
+			Logger::GetInstance().log("[NetMessenger::Receive 1.4] packet received larger than allowed.", debug_level::ERROR);
+			throw std::runtime_error("[NetMessenger::Receive 1.4] packet received larger than allowed.");
 		}
 		comms->ResizeBuffer(size);
 		try{
@@ -165,12 +175,16 @@ void NetMessenger::SendTo(string message, Recipient recipient){
 	try{
 		cur_addr = comms->remote_address();
 	}
-	catch(std::exception e){}
+	catch(std::exception e){
+		Logger::GetInstance().log("[NetMessenger::SendTo] exception getting remote address from socket.", debug_level::WARN);
+	}
 	unsigned short cur_prt = 0;
 	try{
 		cur_prt = comms->remote_port();
 	}
-	catch(std::exception e){}
+	catch(std::exception e){
+		Logger::GetInstance().log("[NetMessenger::SendTo] exception getting remote port from socket.", debug_level::WARN);
+	}
 	comms->Connect(*context, recipient->address, recipient->port);
 	Send(message);
 }
@@ -181,14 +195,20 @@ void NetMessenger::SendNext(){
 		sleep(1);
 	}
 	if(toGoOut > 0){
+		string message;
 		try{
-			string message = outbox.Pop();
+			message = outbox.Pop();
+			Logger::GetInstance().log("[NetMessenger::SendNext] sending '" + message + "'", debug_level::DEBUG);
 			comms->Send(message);
 			toGoOut -= 1;
+			Logger::GetInstance().log("[NetMessenger::SendNext] sent '" + message + "'", debug_level::DEBUG);
 			SendNext();
+			return; 
 		}
-catch(std::runtime_error e){
+	catch(std::runtime_error e){
+		outbox.StoreMessage(outbox.GetFreeBuffer(), message);
 		context->stop();
+		Logger::GetInstance().log("[NetMessenger::SendNext] error sending message\n\t" + string(e.what()), debug_level::ERROR);
 		throw std::runtime_error("[NetMessenger::SendNext()]\n\t" + string(e.what()));
 	}
 	}

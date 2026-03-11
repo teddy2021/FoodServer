@@ -17,6 +17,7 @@
 
 #include "TCPCommunicator.hpp"
 #include "Logger.hpp"
+#include "UDPCommunicator.hpp"
 
 using std::string;
 using boost::shared_ptr;
@@ -314,7 +315,7 @@ void TCPCommunicator::ResetBuffer(){
 
 
 
-void TCPCommunicator::Receive(){
+void TCPCommunicator::Receive(bool async){
 	Logger::GetInstance().log("[TCPCommunicator::Receive] receiving", debug_level::DEBUG);
 	
 	auto s_state = validateSocketState();
@@ -332,9 +333,19 @@ void TCPCommunicator::Receive(){
 	
 	recv_buffer->resize(1024);
 	boost::system::error_code err;
-	size_t transferred = socket->read_some(
-			boost::asio::buffer(*recv_buffer), 
-			err);
+	size_t transferred;
+	if(async){
+		socket->async_read_some(buffer(*recv_buffer),
+				boost::bind(&TCPCommunicator::StoreMessage,
+					this,
+					err,
+					transferred));
+	}
+	else{
+		while((transferred = socket->read_some(
+			buffer(*recv_buffer), 
+			err)) == 0){}
+	}
 	
 	if(err == boost::asio::error::eof){
 		connected = false;
