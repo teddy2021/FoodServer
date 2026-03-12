@@ -1,18 +1,17 @@
 
 
+#include <cmath>
 #include <memory>
 #include <thread>
 #include <algorithm>
 #include <utility>
 #include <vector>
-#include <iostream>
 #include <string>
 #include <mariadb/conncpp.hpp>
 
 using std::string;
 using std::pair;
 using std::vector;
-using std::cerr;
 
 
 #include "Server.hpp"
@@ -63,11 +62,9 @@ Request Server::ParseRequestType(string type){
 	int category;
 	try{
 		category = std::stoi(type);
-		std::cout << "\tCategory: " << std::to_string(category) << "\n";
+		Logger::GetInstance().log( "\tCategory: " + std::to_string(category) + "\n", debug_level::INFO );
 	}
 	catch(std::invalid_argument e){
-		cerr << "[Server::ParseRequest("<<type<<")] error occured during type parsing.\n\t" <<
-			e.what() << "\n";
 		Logger::GetInstance().log("[Server::ParseRequestType] Failed to parse request type: " + type + " - " + e.what(), debug_level::ERROR);
 		throw;
 	}
@@ -76,55 +73,54 @@ Request Server::ParseRequestType(string type){
 	Request r = std::make_shared<req>(rr);
 	switch(category){
 		case 0:
-			std::cout << "\tsyn\n"; 
+			Logger::GetInstance().log( "\tsyn\n", debug_level::DEBUG ); 
 			r->type = syn;
 			break;
 		case 1:
-			std::cout << "\treserve\n"; 
+			Logger::GetInstance().log( "\treserve\n", debug_level::DEBUG ); 
 			r->type = reserve;
 			break;
 		case 2:
-			std::cout << "\trelease\n"; 
+			Logger::GetInstance().log( "\trelease\n", debug_level::DEBUG ); 
 			r->type = release;
 			break;
 		case 3:
-			std::cout << "\tfinalize\n"; 
+			Logger::GetInstance().log( "\tfinalize\n", debug_level::DEBUG );
 			r->type = finalize;
 			break;
 		case 4:
-			std::cout << "\tscrape\n"; 
+			Logger::GetInstance().log( "\tscrape\n", debug_level::DEBUG );
 			r->type = scrape;
 			break;
 		case 5:
-			std::cout << "\trecipe\n"; 
+			Logger::GetInstance().log( "\trecipe\n", debug_level::DEBUG ); 
 			r->type = recipe;
 			break;
 		case 6:
-			std::cout << "\tmatch\n";
+			Logger::GetInstance().log( "\tmatch\n", debug_level::DEBUG );
 			r->type = match;
 			break;
 		case 7:
-			std::cout << "\tstop\n"; 
+			Logger::GetInstance().log( "\tstop\n", debug_level::DEBUG ); 
 			r->type = stop;
 			break;
 		case 10:
-			std::cout << "\tadd ingredient\n";
+			Logger::GetInstance().log( "\tadd ingredient\n", debug_level::DEBUG );
 			r->type = aingredient;
 			break;
 		case 11:
-			std::cout << "\tadd recipe\n";
+			Logger::GetInstance().log( "\tadd recipe\n", debug_level::DEBUG );
 			r->type = arecipe;
 			break;
 		case 20:
-			std::cout << "\tremove ingredient\n";
+			Logger::GetInstance().log( "\tremove ingredient\n", debug_level::DEBUG );
 			r->type = ringredient;
 			break;
 		case 21:
-			std::cout << "\tremove recipe\n";
+			Logger::GetInstance().log( "\tremove recipe\n", debug_level::DEBUG );
 			r->type = rrecipe;
 			break;
 		default:
-			std::cout << "\tFAIL\n"; 
 			Logger::GetInstance().log("[Server::ParseRequestType] Unknown request type: " + type, debug_level::ERROR);
 			throw invalid_state_exception(string("[Server::ParseRequest(" +
 					   	type + ")]: unknown request type."));
@@ -152,7 +148,7 @@ void Server::CheckRequest(string fcn, Request request){
 	}
 	requests type = request->type;
 	if( (type != syn && type != finalize && type != stop) && request->parameters.empty()){
-		std::cout << request_text[request->type]<< "\n";
+		Logger::GetInstance().log( string(request_text[request->type]), debug_level::DEBUG );
 		Respond(request, "300");
 		std::string error_msg = string("[Server::" + fcn + "(" +
 					string(request_text[request->type]) + 
@@ -263,56 +259,56 @@ bool Server::DoRequest(Request request){
 	}
 	catch(const sql::SQLDataException &sd_except){
 		Logger::GetInstance().log("[Server::DoRequest] SQL exception: " + std::string(sd_except.what()), debug_level::ERROR);
-		std::cerr << "Failed to dispatch request " << request_text[request->type] << " with parameters <";
+		Logger::GetInstance().log( "Failed to dispatch request " + string( request_text[request->type] ) + " with parameters <", debug_level::DEBUG );
 		for(int i = 0; i < request->parameters.size(); i += 1){
-			std::cerr << " " << request->parameters[i];
+			Logger::GetInstance().log( " " + request->parameters[i], debug_level::DEBUG );
 		}
-		std::cerr << ">; an SQL exception ocurred.\n\t" << sd_except.what() << "\n";
+		Logger::GetInstance().log( ">; an SQL exception ocurred.", debug_level::DEBUG );
 		Respond(request, "100");
 	}
 	catch(const std::length_error &len_err){
 		Logger::GetInstance().log("[Server::DoRequest] Length error: " + std::string(len_err.what()), debug_level::ERROR);
-		std::cerr << "Failed to dispatch request " << request_text[request->type] << " with parameters <";
+		Logger::GetInstance().log( "Failed to dispatch request " + string( request_text[request->type] ) + " with parameters <", debug_level::DEBUG );
 		for(int i = 0; i < request->parameters.size(); i += 1){
-			std::cerr << " " << request->parameters[i];
+			Logger::GetInstance().log( " " + request->parameters[i], debug_level::DEBUG );
 		}
-		std::cerr << ">; a length error ocurred.\n\t" << len_err.what() << "\n";
+		Logger::GetInstance().log( ">; an SQL exception ocurred.", debug_level::DEBUG );
 		Respond(request, "600");
 	}
 	catch(invalid_state_exception &is_exception){
 		Logger::GetInstance().log("[Server::DoRequest] Invalid state exception: " + std::string(is_exception.what()), debug_level::ERROR);
-		std::cerr << "Failed to dispatch request " << request_text[request->type] << " with parameters <";
+		Logger::GetInstance().log( "Failed to dispatch request " + string( request_text[request->type] ) + " with parameters <", debug_level::DEBUG );
 		for(int i = 0; i < request->parameters.size(); i += 1){
-			std::cerr << " " << request->parameters[i];
+			Logger::GetInstance().log( " " + request->parameters[i], debug_level::DEBUG );
 		}
-		std::cerr << ">; an invalid state exception ocurred.\n\t" << is_exception.what() << "\n";
+		Logger::GetInstance().log( ">; an SQL exception ocurred.", debug_level::DEBUG );
 		Respond(request, "500");
 	}
 	catch(empty_response_parameter_exception &erp_exception){
 		Logger::GetInstance().log("[Server::DoRequest] Empty response parameter exception: " + std::string(erp_exception.what()), debug_level::WARN);
-		std::cerr << "Failed to dispatch request " << request_text[request->type] << " with parameters <";
+		Logger::GetInstance().log( "Failed to dispatch request " + string( request_text[request->type] ) + " with parameters <", debug_level::DEBUG );
 		for(int i = 0; i < request->parameters.size(); i += 1){
-			std::cerr << " " << request->parameters[i];
+			Logger::GetInstance().log( " " + request->parameters[i], debug_level::DEBUG );
 		}
-		std::cerr << ">; an empty response parameter ocurred.\n\t" << erp_exception.what() << "\n";
+		Logger::GetInstance().log( ">; an SQL exception ocurred.", debug_level::DEBUG );
 		Respond(request, "200");
 	}
 	catch(std::runtime_error &rt_err){
 		Logger::GetInstance().log("[Server::DoRequest] Runtime error: " + std::string(rt_err.what()), debug_level::ERROR);
-		std::cerr << "Failed to dispatch request " << request_text[request->type] << " with parameters <";
+		Logger::GetInstance().log( "Failed to dispatch request " + string( request_text[request->type] ) + " with parameters <", debug_level::DEBUG );
 		for(int i = 0; i < request->parameters.size(); i += 1){
-			std::cerr << " " << request->parameters[i];
+			Logger::GetInstance().log( " " + request->parameters[i], debug_level::DEBUG );
 		}
-		std::cerr << ">; a runtime error ocured.\n\t" << rt_err.what() << "\n";
+		Logger::GetInstance().log( ">; a runtime exception ocurred.", debug_level::DEBUG );
 	}
 	catch(...){
 		Logger::GetInstance().log("[Server::DoRequest] Unknown exception", debug_level::ERROR);
 		std::exception_ptr exception = std::current_exception();
-		std::cerr << "Failed to dispatch request " << request_text[request->type] << " with parameters <";
+		Logger::GetInstance().log( "Failed to dispatch request " + string( request_text[request->type] ) + " with parameters <", debug_level::DEBUG );
 		for(int i = 0; i < request->parameters.size(); i += 1){
-			std::cerr << " " << request->parameters[i];
+			Logger::GetInstance().log( " " + request->parameters[i], debug_level::DEBUG );
 		}
-		std::cerr << ">; an exception/error ocurred.\n";
+		Logger::GetInstance().log( ">; an error/exception ocurred.", debug_level::DEBUG );
 		std::rethrow_exception(exception);
 		Respond(request, "1000");
 	}
@@ -350,6 +346,7 @@ void Server::AddIngredients(Request request){
 			db->CreateIngredient(ingredient, amount, false);
 		}
 		catch(...){
+			Logger::GetInstance().log("[Server::AddIngredients] ingredient " + ingredient + " already exists in db, updating instead.", debug_level::INFO);
 			db->UpdateIngredient(ingredient, amount);
 		}
 	}
@@ -376,7 +373,7 @@ void Server::Reserve(Request request){
 			ingredients.push_back(request->parameters[i]);
 		}
 		catch(...){
-
+			Logger::GetInstance().log("[Server::Reserve] could not parse " + request->parameters[i+1] + " as a float value.", debug_level::ERROR);
 		}
 	}
 
@@ -482,7 +479,7 @@ void Server::GetIngredientsAndInstructions(Request request){
 					 *(it+1) = std::to_string(amount + present);
 				 }
 				 catch(std::exception e){
-
+					 Logger::GetInstance().log("[Server::GetIngredientsAndInstructions] could not parse either amount (" + subset[j+1] + ") or present amount (" + *(it+1) + ") as float values.", debug_level::ERROR);
 				 }
 			 }
 			 else{

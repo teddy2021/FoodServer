@@ -111,9 +111,12 @@ void DBConnector::MapRecipeToIngredient(string recipe, float amount, string ingr
 	unique_ptr<sql::ResultSet> r_res(std::move(r_id_stmt->executeQuery()));
 
 	if(!g_res->next()){
+		Logger::GetInstance().log("[DBConnector::MapRecipeToIngredient]: grocery (" + ingredient + ") not tracked in db.", debug_level::ERROR);
 		throw std::runtime_error("[DBConnector::MapRecipeToIngredient]: grocery (" + ingredient + ") not tracked in db.");
 	}
 	if(!r_res->next()){
+		Logger::GetInstance().log("[DBConnector::MapRecipeToIngredient]: recipe (" + recipe + ") not tracked in db.", debug_level::ERROR);
+		throw std::runtime_error("[DBConnector::MapRecipeToIngredient]: recipe (" + recipe + ") not tracked in db.");
 	}
 
 	int g_id = g_res->getInt(1);

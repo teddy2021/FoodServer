@@ -810,6 +810,7 @@ TEST_CASE("Testing DBConnector", "[DB]"){
 			}
 		}
 		catch(std::runtime_error re){
+			Logger::GetInstance().log("[Test] could not delete " + ing + ".\n\t" + re.what(), debug_level::ERROR);
 		}
 	}
 
