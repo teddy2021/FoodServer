@@ -182,10 +182,16 @@ void DBConnector::DeleteRecipe(std::string name){
 vector<pair<int,float>> DBConnector::Reserve(vector<string> ingredients, vector<float> amounts){
 	Logger::GetInstance().log("[DBConnector::Reserve] ingredients", debug_level::INFO);
 	if(ingredients.empty()){
+		Logger::GetInstance().log("[DBConnector::Reserve] empty ingredient count", debug_level::ERROR);
 		throw std::runtime_error("[DBConnector::Reserve]: ingredients cannot be empty");
 	}
 	if(amounts.empty()){
+		Logger::GetInstance().log("[DBConnector::Reserve] empty amount count.", debug_level::ERROR);
 		throw std::runtime_error("[DBConnector::Reserve]: amounts cannot be empty");
+	}
+	if(ingredients.size() != amounts.size()){
+		Logger::GetInstance().log("[DBConnector::Reserve] ingredient:amount count mismatch", debug_level::ERROR);
+		throw std::runtime_error("[DBConnector::Reserve] parameter size mismatch ( " + std::to_string(amounts.size()) + " != " + std::to_string(ingredients.size()) +" )");
 	}
 	string statement("select name, (amount - in_use) available from groceries where name in (");
 	for(int i = 0; i < ingredients.size(); i += 1){

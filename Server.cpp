@@ -39,6 +39,10 @@ Server::~Server(){
 }
 
 vector<string> Server::Tokenize(string message){
+	if(message.size() == 0 || message.empty()){
+		Logger::GetInstance().log("[Server::Tokenize] empty message, no work necessary.", debug_level::DEBUG);
+		return vector<string>();
+	}
 	Logger::GetInstance().log("[Server::Tokenize] tokenizing message: " + message.substr(0, 50), debug_level::DEBUG);
 	vector<string> output;
 	int start = 0;
@@ -160,20 +164,20 @@ void Server::CheckRequest(string fcn, Request request){
 }
 
 
-Server::Server(protocol_type type): messenger(type), db(), connections(){
+Server::Server(protocol_type type): messenger(type), db(new DBConnector()), connections(){
 	Logger::GetInstance().log("[Server::Server] protocol type", debug_level::INFO);
 	const auto processor_count = std::thread::hardware_concurrency();
 	worker_count = sysconf(_SC_NPROCESSORS_ONLN);
 	next_worker = 1;
 }
 
-Server::Server(protocol_type type, unsigned short int port): messenger(type, port), db(), connections(){
+Server::Server(protocol_type type, unsigned short int port): messenger(type, port), db(new DBConnector()), connections(){
 	Logger::GetInstance().log("[Server::Server] protocol type and port: " + std::to_string(port), debug_level::INFO);
 	worker_count = std::thread::hardware_concurrency();
 	next_worker = 1;
 }
 
-Server::Server(NetMessenger net): messenger(net), db(), connections(){
+Server::Server(NetMessenger net): messenger(net), db(new DBConnector()), connections(){
 	Logger::GetInstance().log("[Server::Server] NetMessenger", debug_level::INFO);
 	db = std::make_unique<DBConnector>();
 	const auto processor_count = std::thread::hardware_concurrency();
@@ -309,8 +313,8 @@ bool Server::DoRequest(Request request){
 			Logger::GetInstance().log( " " + request->parameters[i], debug_level::DEBUG );
 		}
 		Logger::GetInstance().log( ">; an error/exception ocurred.", debug_level::DEBUG );
-		std::rethrow_exception(exception);
 		Respond(request, "1000");
+		std::rethrow_exception(exception);
 	}
 	return true;
 }
@@ -338,7 +342,7 @@ void Server::AddToGroceryList(vector<pair<string, float>> groceriesAndMinimums){
 
 void Server::AddIngredients(Request request){
 	Logger::GetInstance().log("[Server::AddIngredients] adding ingredients, count: " + std::to_string(request->parameters.size()), debug_level::INFO);
-	for(auto it = request->parameters.begin(); it != request->parameters.end(); it += 3 ){
+	for(auto it = request->parameters.begin(); it <= request->parameters.end() - 2; it += 3 ){
 		string ingredient = *it;
 		float amount = std::stof(*(it + 1));
 		string unit = *(it + 2);
@@ -365,6 +369,15 @@ void Server::RemoveIngredients(Request request){
 void Server::Reserve(Request request){
 	Logger::GetInstance().log("[Server::Reserve] reserving ingredients", debug_level::INFO);
 	CheckRequest("Reserve", request);
+	if(request->parameters.size() == 0 || request->parameters.empty()){
+		Logger::GetInstance().log("[Server::Reserve] empty parameter set, no work necessarry.", debug_level::DEBUG);
+		return;
+	}
+	if(request->parameters.size() % 2 != 0){
+		Logger::GetInstance().log("[Server::Reserve] request parameter count mismatch (uneven parameter count " + std::to_string(request->parameters.size())  + ")", debug_level::ERROR);
+		throw std::runtime_error("[Server::Reserve] request parameter count mismatch (" + std::to_string(request->parameters.size()) + ").");
+	}
+
 	vector<string> ingredients;
 	vector<float> amounts;
 	for(int i = 0; i < request->parameters.size(); i += 2){

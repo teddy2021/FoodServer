@@ -1,5 +1,4 @@
 #pragma once
-#include "Enums.hpp"
 #include "IDB.hpp"
 #include <utility>
 #include <mariadb/conncpp.hpp>

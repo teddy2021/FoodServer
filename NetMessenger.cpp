@@ -69,12 +69,38 @@ NetMessenger::NetMessenger(protocol_type type, string address, unsigned short po
 	}
 }
 
+NetMessenger::NetMessenger(const NetMessenger && other) noexcept
+    : comms(std::move(other.comms))
+    , context(std::move(other.context))
+    , inbox(std::move(other.inbox))
+    , outbox(std::move(other.outbox))
+    , toGoOut(other.toGoOut)
+{
+    Logger::GetInstance().log("[NetMessenger::NetMessenger] move constructed", debug_level::DEBUG);
+}
+
+NetMessenger::NetMessenger(NetMessenger && other) noexcept
+    : comms(std::move(other.comms))
+    , context(std::move(other.context))
+    , inbox(std::move(other.inbox))
+    , outbox(std::move(other.outbox))
+    , toGoOut(other.toGoOut)
+{
+    Logger::GetInstance().log("[NetMessenger::NetMessenger] move constructed", debug_level::DEBUG);
+}
+
 NetMessenger::NetMessenger(NetMessenger & other): comms(std::move(other.comms)),  context(other.context){
 	Logger::GetInstance().log("[NetMessenger::NetMessenger] copy constructed", debug_level::DEBUG);
 	inbox = other.inbox;
 	outbox = other.outbox;
 	toGoOut = other.toGoOut;
-	other.comms = nullptr;
+}
+
+NetMessenger::NetMessenger(const NetMessenger & other): comms(std::move(other.comms)),  context(other.context){
+	Logger::GetInstance().log("[NetMessenger::NetMessenger] copy constructed", debug_level::DEBUG);
+	inbox = other.inbox;
+	outbox = other.outbox;
+	toGoOut = other.toGoOut;
 }
 
 NetMessenger & NetMessenger::operator=(NetMessenger &other){

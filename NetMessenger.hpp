@@ -36,7 +36,10 @@ class NetMessenger{
 		NetMessenger(protocol_type type);
 		NetMessenger(protocol_type type, unsigned short port);
 		NetMessenger(protocol_type type, std::string address, unsigned short port);
+		NetMessenger(NetMessenger && other) noexcept;
+		NetMessenger(const NetMessenger && other) noexcept;
 		NetMessenger(NetMessenger & other);
+		NetMessenger(const NetMessenger & other);
 
 		~NetMessenger();
 
