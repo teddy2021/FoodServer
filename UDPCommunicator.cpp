@@ -327,6 +327,7 @@ void UDPCommunicator::Connect(boost::asio::io_context & context, string address)
 	
 	auto s_state = validateSocketState();
 	if(s_state == SocketStateError::NullSocket){
+		Logger::GetInstance().log("[UDPCommunicator::Connect] Socket is null", debug_level::ERROR);
 		throw ConnectionException(SocketStateError::NullSocket, "[UDPCommunicator::Connect]", "Socket is null");
 	}
 	
@@ -335,6 +336,7 @@ void UDPCommunicator::Connect(boost::asio::io_context & context, string address)
 	boost::asio::ip::udp::resolver::results_type res = r.resolve(address, std::to_string(0xBEEF), err);
 	
 	if(err || res.empty()){
+		Logger::GetInstance().log("[UDPCommunicator::Connect] Failed to resolve address: " + address + " - " + err.message(), debug_level::ERROR);
 		throw ConnectionException("[UDPCommunicator::Connect]", "Failed to resolve address: " + address + " - " + err.message());
 	}
 	

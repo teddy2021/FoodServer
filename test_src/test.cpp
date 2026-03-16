@@ -1024,8 +1024,6 @@ TEST_CASE("Testing multiple TCP agents", "[NM][TCP][MULTI]"){
 			io_context->run();
 		});
 
-		//u32string msg1;
-		//u32string msg2;
 		string msg1;
 		string msg2;
 		for(int i = 0; i < 800; i += 2){
@@ -1415,7 +1413,7 @@ TEST_CASE("Testing Server", "[SRV]"){
 			string dump = com->GetFirstMessage();
 		}
 
-		for(int i = 0; rec_count; i += 1){
+		for(int i = 0; i < rec_count; i += 1){
 			int rec_len = 5 + dist(eng);
 			string rec_name;
 			for(int j = 0; j < rec_len; j += 1){

@@ -1,6 +1,5 @@
 
 
-#include <cmath>
 #include <memory>
 #include <thread>
 #include <algorithm>
@@ -24,6 +23,7 @@ using std::vector;
 
 Server::~Server(){
 	Logger::GetInstance().log("[Server::~Server] shutting down", debug_level::INFO);
+	running = false;
 	if(!connections.empty()){
 		for(Recipient r : connections){
 			try{  
@@ -153,7 +153,6 @@ void Server::CheckRequest(string fcn, Request request){
 	requests type = request->type;
 	if( (type != syn && type != finalize && type != stop) && request->parameters.empty()){
 		Logger::GetInstance().log( string(request_text[request->type]), debug_level::DEBUG );
-		Respond(request, "300");
 		std::string error_msg = string("[Server::" + fcn + "(" +
 					string(request_text[request->type]) + 
 					", <||" + std::to_string(request->parameters.size()) + "||>, " +
@@ -164,20 +163,20 @@ void Server::CheckRequest(string fcn, Request request){
 }
 
 
-Server::Server(protocol_type type): messenger(type), db(new DBConnector()), connections(){
+Server::Server(protocol_type type): mtx(), messenger(type), db(new DBConnector()), connections(){
 	Logger::GetInstance().log("[Server::Server] protocol type", debug_level::INFO);
 	const auto processor_count = std::thread::hardware_concurrency();
 	worker_count = sysconf(_SC_NPROCESSORS_ONLN);
 	next_worker = 1;
 }
 
-Server::Server(protocol_type type, unsigned short int port): messenger(type, port), db(new DBConnector()), connections(){
+Server::Server(protocol_type type, unsigned short int port): mtx(), messenger(type, port), db(new DBConnector()), connections(){
 	Logger::GetInstance().log("[Server::Server] protocol type and port: " + std::to_string(port), debug_level::INFO);
 	worker_count = std::thread::hardware_concurrency();
 	next_worker = 1;
 }
 
-Server::Server(NetMessenger net): messenger(net), db(new DBConnector()), connections(){
+Server::Server(NetMessenger net): mtx(), messenger(net), db(new DBConnector()), connections(){
 	Logger::GetInstance().log("[Server::Server] NetMessenger", debug_level::INFO);
 	db = std::make_unique<DBConnector>();
 	const auto processor_count = std::thread::hardware_concurrency();
@@ -188,8 +187,9 @@ Server::Server(NetMessenger net): messenger(net), db(new DBConnector()), connect
 
 void Server::Listen(){
 	Logger::GetInstance().log("[Server::Listen] listening for requests", debug_level::INFO);
-	bool running = true;
+	running = true;
 	while(running){
+		mtx.lock();
 		messenger.Receive();
 		string message = messenger.GetFirstMessage();
 		httpreq h_request;
@@ -211,6 +211,7 @@ void Server::Listen(){
 			p_request->connection = (int)(prev_con - connections.begin());
 		}
 		running = DoRequest(p_request);
+		mtx.unlock();
 	}
 }
 
@@ -314,12 +315,12 @@ bool Server::DoRequest(Request request){
 		}
 		Logger::GetInstance().log( ">; an error/exception ocurred.", debug_level::DEBUG );
 		Respond(request, "1000");
-		std::rethrow_exception(exception);
 	}
 	return true;
 }
 
 void Server::AddToGroceryList(vector<pair<string, float>> groceriesAndMinimums){
+	mtx.lock();
 	Logger::GetInstance().log("[Server::AddToGroceryList] adding to grocery list, count: " + std::to_string(groceriesAndMinimums.size()), debug_level::DEBUG);
 	if(groceriesAndMinimums.empty()){
 		std::string error_msg = "[Server::AddToGroceryList(<|| " + 
@@ -338,6 +339,7 @@ void Server::AddToGroceryList(vector<pair<string, float>> groceriesAndMinimums){
 			groceries.insert({item, min});
 		}
 	}
+	mtx.unlock();
 }
 
 void Server::AddIngredients(Request request){
@@ -371,7 +373,7 @@ void Server::Reserve(Request request){
 	CheckRequest("Reserve", request);
 	if(request->parameters.size() == 0 || request->parameters.empty()){
 		Logger::GetInstance().log("[Server::Reserve] empty parameter set, no work necessarry.", debug_level::DEBUG);
-		return;
+		throw std::runtime_error("[Server::Reserve] empty parameter set");
 	}
 	if(request->parameters.size() % 2 != 0){
 		Logger::GetInstance().log("[Server::Reserve] request parameter count mismatch (uneven parameter count " + std::to_string(request->parameters.size())  + ")", debug_level::ERROR);

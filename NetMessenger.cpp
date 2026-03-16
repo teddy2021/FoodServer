@@ -1,10 +1,12 @@
 
+#include <algorithm>
 #include <boost/asio.hpp>
 #include <climits>
 #include <cmath>
 #include <exception>
 #include <string>
 #include <stdexcept>
+#include <utility>
 
 using std::string;
 
@@ -110,8 +112,11 @@ NetMessenger & NetMessenger::operator=(NetMessenger &other){
 } 
 
 NetMessenger & NetMessenger::operator=(NetMessenger &&other){
-	NetMessenger temp(other);
-	swap(*this, other);
+	comms = std::move(other.comms);
+	context = std::move(other.context);
+	inbox = std::move(other.inbox);
+	outbox = std::move(other.outbox);
+	toGoOut = std::move(other.toGoOut);
 	return *this;
 }
 
@@ -220,7 +225,7 @@ void NetMessenger::SendNext(){
 	while(nullptr == GetRemoteEndpoint()){
 		sleep(1);
 	}
-	if(toGoOut > 0){
+	while(toGoOut > 0){
 		string message;
 		try{
 			message = outbox.Pop();
@@ -228,20 +233,23 @@ void NetMessenger::SendNext(){
 			comms->Send(message);
 			toGoOut -= 1;
 			Logger::GetInstance().log("[NetMessenger::SendNext] sent '" + message + "'", debug_level::DEBUG);
-			SendNext();
 			return; 
 		}
-	catch(std::runtime_error e){
-		outbox.StoreMessage(outbox.GetFreeBuffer(), message);
-		context->stop();
-		Logger::GetInstance().log("[NetMessenger::SendNext] error sending message\n\t" + string(e.what()), debug_level::ERROR);
-		throw std::runtime_error("[NetMessenger::SendNext()]\n\t" + string(e.what()));
-	}
+		catch(std::runtime_error e){
+			outbox.StoreMessage(outbox.GetFreeBuffer(), message);
+			context->stop();
+			Logger::GetInstance().log("[NetMessenger::SendNext] error sending message\n\t" + string(e.what()), debug_level::ERROR);
+			throw std::runtime_error("[NetMessenger::SendNext()]\n\t" + string(e.what()));
+		}
 	}
 }
 
 Recipient NetMessenger::GetRemoteEndpoint(){
 	Logger::GetInstance().log("[NetMessenger::GetRemoteEndpoint] getting remote endpoint", debug_level::DEBUG);
+	if(nullptr == comms){
+		Logger::GetInstance().log("[NetMessenger::GetRemoteEndpoint]: null socket pointer.", debug_level::ERROR);
+		throw std::runtime_error("[NetMessenger::GetRemoteEndpoint]: null socket pointer.");
+	}
 	string addr = comms->remote_address();
 	unsigned short p = comms->remote_port();
 	recipient rr;

@@ -4,6 +4,7 @@
 #include "Enums.hpp"
 
 #include <memory>
+#include <mutex>
 #include <utility>
 #include <unordered_map>
 
@@ -26,6 +27,8 @@ class Server{
 		unsigned short int next_worker;
 		int worker_count;
 		std::vector<Recipient> connections;
+		std::mutex mtx;
+		bool running = false;
 
 		/**
 		 * Splits a request into tokens by pipe seperators
@@ -145,7 +148,14 @@ class Server{
 
 		Server(Server &other) = delete;
 		Server & operator=(const Server &other) = delete;
-Server & operator=(Server &&other){
+	
+
+		Server(Server && other): db(std::move(other.db)), messenger(std::move(other.messenger)),
+		groceries(std::move(other.groceries)), next_worker(std::move(other.next_worker)),
+		worker_count(std::move(other.worker_count)), connections(std::move(other.connections)){
+		};
+		
+		Server & operator=(Server &&other){
 			if(this != &other){
 				messenger = std::move(other.messenger);
 				db = std::move(other.db);

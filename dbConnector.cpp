@@ -86,6 +86,7 @@ void DBConnector::CreateRecipe(string name, string instruction, string url){
 	stmt->setString(3, url);
 
 	stmt->executeQuery();
+	connection->commit();
 }
 
 void DBConnector::MapRecipeToIngredient(string recipe, float amount, string ingredient){
@@ -374,15 +375,16 @@ void DBConnector::Release(vector<string> items, vector<float> amounts){
 		if(amounts[i] < 0){
 			throw std::runtime_error("[DBConnector::Release]: amount cannot be less than 0. (given for item " + std::to_string(i) + ": " + std::to_string(amounts[i]) + ")");
 		}
-		releases += "when ? then in_use - ?";
+		releases += "when ? then in_use - ?,";
 		releases += "\n";
 	}
 	releases += "else in_use end";
 	unique_ptr<PreparedStatement> stmt(connection->prepareStatement(releases));
-	for(int i = 1; i < items.size() + 1; i += 2){
+	for(int i = 0; i < items.size(); i += 2){
 		stmt->setString(i, items[(i-1)/2]);
 		stmt->setFloat(i + 1, amounts[(i-1)/2]);
 	}
 	stmt->executeUpdate();
+	connection->commit();
 }
 

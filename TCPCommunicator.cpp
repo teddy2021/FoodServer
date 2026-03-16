@@ -9,7 +9,6 @@
 #include <memory>
 #include <stdexcept>
 #include <string>
-#include <iostream>
 
 #include <boost/make_shared.hpp>
 #include <boost/bind/bind.hpp>
@@ -17,7 +16,6 @@
 
 #include "TCPCommunicator.hpp"
 #include "Logger.hpp"
-#include "UDPCommunicator.hpp"
 
 using std::string;
 using boost::shared_ptr;
@@ -244,6 +242,7 @@ void TCPCommunicator::Accept(const AcceptConfig& config){
 	}
 	
 	if(socket->is_open()){
+		socket->cancel();
 		socket->close();
 	}
 	socket = std::make_unique<boost::asio::ip::tcp::socket>(*io_context_ref);
@@ -348,6 +347,7 @@ void TCPCommunicator::Receive(bool async){
 	}
 	
 	if(err == boost::asio::error::eof){
+		Logger::GetInstance().log("[TCPCommunicator::Receive] eof error encoutered.", debug_level::ERROR);
 		connected = false;
 		connStatus.consecutiveFailures++;
 		
