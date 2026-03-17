@@ -2,12 +2,21 @@
 #include "IDB.hpp"
 #include <utility>
 #include <mariadb/conncpp.hpp>
+#include <thread>
+#include <chrono>
 
 class DBConnector: public IDB{
 
 	private:
 		sql::Driver * driver;
 		std::unique_ptr<sql::Connection> connection;
+		std::string connectionUrl;
+		sql::Properties connectionProperties;
+
+		void connect();
+		bool isConnected();
+		bool reconnect(int maxRetries = 3);
+		void ensureConnected();
 		
 	public:
 		// Constructors/Destructors
