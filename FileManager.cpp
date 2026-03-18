@@ -66,14 +66,17 @@ FileManager::FileManager(string path, size_t lineLen): filepath(path){
 
 	string line;
 	while(std::getline(file, line)){
+		if(line.empty()){
+			continue;
+		}
 		if(line.size() > lineLen){
 			size_t beg = 0;
 			size_t end = lineLen - 1;
-			while(end < line.size()){
+			while(end < line.size() && beg < line.size()){
 				string sub = line.substr(beg, end);
 				data.push_back(sub);
 				beg = end + 1;
-				end = beg + std::min(lineLen, line.size() - beg);
+				end = beg + std::min(lineLen, static_cast<size_t>(line.size() - beg));
 			}
 		}
 

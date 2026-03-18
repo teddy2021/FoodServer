@@ -165,8 +165,7 @@ void Server::CheckRequest(string fcn, Request request){
 
 Server::Server(protocol_type type): mtx(), messenger(type), db(new DBConnector()), connections(){
 	Logger::GetInstance().log("[Server::Server] protocol type", debug_level::INFO);
-	const auto processor_count = std::thread::hardware_concurrency();
-	worker_count = sysconf(_SC_NPROCESSORS_ONLN);
+	worker_count = std::thread::hardware_concurrency();
 	next_worker = 1;
 }
 
@@ -180,7 +179,7 @@ Server::Server(NetMessenger net): mtx(), messenger(net), db(new DBConnector()), 
 	Logger::GetInstance().log("[Server::Server] NetMessenger", debug_level::INFO);
 	db = std::make_unique<DBConnector>();
 	const auto processor_count = std::thread::hardware_concurrency();
-	worker_count = sysconf(_SC_NPROCESSORS_ONLN);
+	worker_count = std::thread::hardware_concurrency();
 	next_worker = 1;
 }
 
@@ -190,8 +189,10 @@ void Server::Listen(){
 	running = true;
 	while(running){
 		mtx.lock();
+		Logger::GetInstance().log("[Server::Listen] Receiving.", debug_level::DEBUG);
 		messenger.Receive();
 		string message = messenger.GetFirstMessage();
+		Logger::GetInstance().log("[Server::Listen] received " + message, debug_level::DEBUG);
 		httpreq h_request;
 		Request p_request;
 		string first_seven = message.substr(0,7);
@@ -490,11 +491,11 @@ void Server::GetIngredientsAndInstructions(Request request){
 			 if( it != ingredients.end()){
 				 try{
 					 float amount = std::stof(subset[j+1]);
-					 float present = std::stof(*(it + 1));
-					 *(it+1) = std::to_string(amount + present);
+					 float present = std::stof(*it);
+					 *it = std::to_string(amount + present);
 				 }
 				 catch(std::exception e){
-					 Logger::GetInstance().log("[Server::GetIngredientsAndInstructions] could not parse either amount (" + subset[j+1] + ") or present amount (" + *(it+1) + ") as float values.", debug_level::ERROR);
+					 Logger::GetInstance().log("[Server::GetIngredientsAndInstructions] could not parse either amount (" + subset[j+1] + ") or present amount (" + *it + ") as float values.", debug_level::ERROR);
 				 }
 			 }
 			 else{

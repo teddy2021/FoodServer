@@ -1,7 +1,7 @@
 #pragma once
 #include <fstream>
 #include <string>
-enum class debug_level { DEBUG, INFO, WARN, ERROR };
+enum class debug_level { INFO=0, DEBUG=1,  WARN=2, ERROR=3};
 class Logger{
 
 	private:

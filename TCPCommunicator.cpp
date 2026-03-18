@@ -6,6 +6,7 @@
 #include <boost/system/detail/errc.hpp>
 #include <boost/system/detail/error_code.hpp>
 #include <catch2/catch_tostring.hpp>
+#include <chrono>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -343,7 +344,9 @@ void TCPCommunicator::Receive(bool async){
 	else{
 		while((transferred = socket->read_some(
 			buffer(*recv_buffer), 
-			err)) == 0){}
+			err)) == 0){
+			std::this_thread::sleep_for(std::chrono::milliseconds(10));
+		}
 	}
 	
 	if(err == boost::asio::error::eof){

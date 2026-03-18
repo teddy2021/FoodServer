@@ -158,76 +158,76 @@ TEST_CASE("Testing Constructors"){
 	SECTION("Testing UDPCommunicator","[UDP][Constructor]"){
 		con->run();
 
-		CHECK_NOTHROW(std::make_unique<UDPCommunicator>(con, static_cast<unsigned short>(8081)));
-		CHECK_NOTHROW(std::make_unique<UDPCommunicator>(con, "127.0.0.1", 8083));
+		REQUIRE_NOTHROW(std::make_unique<UDPCommunicator>(con, static_cast<unsigned short>(8081)));
+		REQUIRE_NOTHROW(std::make_unique<UDPCommunicator>(con, "127.0.0.1", 8083));
 
 		std::cout << "Moving on from nothrows to throws.\n";
 		auto com3 = std::make_unique<UDPCommunicator>(con);
-		CHECK_THROWS((std::make_unique<UDPCommunicator>(con)));
-		CHECK_THROWS((std::make_unique<UDPCommunicator>(con, static_cast<unsigned short>(0xBEEF))));
-		CHECK_THROWS((std::make_unique<UDPCommunicator>(con, "0.0.0.0", 0xBEEF)));
-		CHECK_THROWS((std::make_unique<UDPCommunicator>(con, "localhost", 8080)));
+		REQUIRE_THROWS((std::make_unique<UDPCommunicator>(con)));
+		REQUIRE_THROWS((std::make_unique<UDPCommunicator>(con, static_cast<unsigned short>(0xBEEF))));
+		REQUIRE_THROWS((std::make_unique<UDPCommunicator>(con, "0.0.0.0", 0xBEEF)));
+		REQUIRE_THROWS((std::make_unique<UDPCommunicator>(con, "localhost", 8080)));
 	}
 
 	SECTION("Testing TCPCommunicator","[TCP][Constructor]"){
 		TCPCommunicator com1(con);
-		CHECK_NOTHROW(com1 = TCPCommunicator(con));
+		REQUIRE_NOTHROW(com1 = TCPCommunicator(con));
 
-		CHECK_NOTHROW(com1 = TCPCommunicator(con, 8080));
-		CHECK_NOTHROW(std::make_unique<TCPCommunicator>(con, 8081));
+		REQUIRE_NOTHROW(com1 = TCPCommunicator(con, 8080));
+		REQUIRE_NOTHROW(std::make_unique<TCPCommunicator>(con, 8081));
 
-		CHECK_NOTHROW(com1 = TCPCommunicator(con, "127.0.0.1", 8082));
-		CHECK_NOTHROW(std::make_unique<TCPCommunicator>(con, "127.0.0.1", 8083));
+		REQUIRE_NOTHROW(com1 = TCPCommunicator(con, "127.0.0.1", 8082));
+		REQUIRE_NOTHROW(std::make_unique<TCPCommunicator>(con, "127.0.0.1", 8083));
 	}
 
 	SECTION("Testing DBConnector", "[DB][Construtor]"){
 
 		DBConnector db;
-		CHECK_NOTHROW(db = DBConnector("jdbc:mariadb://localhost:3306/FoodServerTest") );
-		CHECK_THROWS(db = DBConnector("hello"));
+		REQUIRE_NOTHROW(db = DBConnector("jdbc:mariadb://localhost:3306/FoodServerTest") );
+		REQUIRE_THROWS(db = DBConnector("hello"));
 	}
 
 	SECTION("Testing MessageManager", "[Storage][Constructor]"){
 		MessageManager msg;
-		CHECK_NOTHROW(msg = MessageManager());
+		REQUIRE_NOTHROW(msg = MessageManager());
 	}
 
 	SECTION("Testing FileManager", "[FileManager][Constructor]"){
-		CHECK_NOTHROW(std::make_unique<FileManager>("test_src/test.cpp"));
-		CHECK_THROWS((std::make_unique<FileManager>("astd")));
-		CHECK_NOTHROW(std::make_unique<FileManager>("FileManager.hpp"));
+		REQUIRE_NOTHROW(std::make_unique<FileManager>("test_src/test.cpp"));
+		REQUIRE_THROWS((std::make_unique<FileManager>("astd")));
+		REQUIRE_NOTHROW(std::make_unique<FileManager>("FileManager.hpp"));
 	}
 
 	SECTION("Testing NetMessenger", "[NetMessenger][Construtor]"){
 		std::unique_ptr<NetMessenger> nm_ptr;
 		NetMessenger nm;
-		CHECK_NOTHROW(nm = NetMessenger(udp));
-		CHECK_NOTHROW(nm = NetMessenger(tcp));
-		CHECK_NOTHROW(nm = NetMessenger(udp, 8080));
-		CHECK_NOTHROW(nm = NetMessenger(tcp, 8081));
-		CHECK_NOTHROW(nm = NetMessenger( udp, "0.0.0.0", 8082) );
-		CHECK_NOTHROW(nm = NetMessenger(tcp, "0.0.0.0", 8083));
-		CHECK_NOTHROW( nm = NetMessenger() );
-		CHECK_NOTHROW(nm_ptr = std::make_unique<NetMessenger>(udp));
+		REQUIRE_NOTHROW(nm = NetMessenger(udp));
+		REQUIRE_NOTHROW(nm = NetMessenger(tcp));
+		REQUIRE_NOTHROW(nm = NetMessenger(udp, 8080));
+		REQUIRE_NOTHROW(nm = NetMessenger(tcp, 8081));
+		REQUIRE_NOTHROW(nm = NetMessenger( udp, "0.0.0.0", 8082) );
+		REQUIRE_NOTHROW(nm = NetMessenger(tcp, "0.0.0.0", 8083));
+		REQUIRE_NOTHROW( nm = NetMessenger() );
+		REQUIRE_NOTHROW(nm_ptr = std::make_unique<NetMessenger>(udp));
 		CAPTURE(nm);
-		CHECK_THROWS(nm = NetMessenger(udp));
+		REQUIRE_THROWS(nm = NetMessenger(udp));
 		nm_ptr = nullptr;
 
-		CHECK_NOTHROW(nm_ptr = std::make_unique<NetMessenger>(tcp));
+		REQUIRE_NOTHROW(nm_ptr = std::make_unique<NetMessenger>(tcp));
 		CAPTURE(nm);
-		CHECK_THROWS(nm = NetMessenger(tcp));
+		REQUIRE_THROWS(nm = NetMessenger(tcp));
 		nm_ptr = nullptr;
 
-		CHECK_NOTHROW(nm_ptr = std::make_unique<NetMessenger>(udp));
+		REQUIRE_NOTHROW(nm_ptr = std::make_unique<NetMessenger>(udp));
 		CAPTURE(nm);
-		CHECK_THROWS(nm = NetMessenger(udp, 0xDEAD));
+		REQUIRE_THROWS(nm = NetMessenger(udp, 0xDEAD));
 		CAPTURE(nm);
-		CHECK_THROWS(nm = NetMessenger(udp, "0.0.0.0", 0xDEAD));
+		REQUIRE_THROWS(nm = NetMessenger(udp, "0.0.0.0", 0xDEAD));
 
 		CAPTURE(nm);
-		CHECK_THROWS(nm = NetMessenger(udp, "hello", 2021));
+		REQUIRE_THROWS(nm = NetMessenger(udp, "hello", 2021));
 		CAPTURE(nm);
-		CHECK_THROWS(nm = NetMessenger(tcp, "hello", 2021));
+		REQUIRE_THROWS(nm = NetMessenger(tcp, "hello", 2021));
 	}
 
 	SECTION("Testing Server", "[Server],[Construtor]"){
@@ -235,16 +235,16 @@ TEST_CASE("Testing Constructors"){
 		DBConnector db;
 		auto udp_c = std::make_shared<NetMessenger>(udp, 8080);
 		auto tcp_c = std::make_shared<NetMessenger>(tcp, 8080);
-		CHECK_NOTHROW(s = Server());
-		CHECK_NOTHROW(s = Server());
-		CHECK_NOTHROW(s = Server(*udp_c));
-		CHECK_NOTHROW(s = Server(*tcp_c));
+		REQUIRE_NOTHROW(s = Server());
+		REQUIRE_NOTHROW(s = Server());
+		REQUIRE_NOTHROW(s = Server(*udp_c));
+		REQUIRE_NOTHROW(s = Server(*tcp_c));
 
-		CHECK_NOTHROW(std::make_unique<Server>(*udp_c));
-		CHECK_NOTHROW(s = Server(*udp_c));
+		REQUIRE_NOTHROW(std::make_unique<Server>(*udp_c));
+		REQUIRE_NOTHROW(s = Server(*udp_c));
 
-		CHECK_NOTHROW(std::make_unique<Server>(*tcp_c));
-		CHECK_NOTHROW(s = Server(*tcp_c));
+		REQUIRE_NOTHROW(std::make_unique<Server>(*tcp_c));
+		REQUIRE_NOTHROW(s = Server(*tcp_c));
 	}
 
 }
@@ -257,15 +257,15 @@ TEST_CASE("Testing connection establishment"){
 		UDPCommunicator comm1(con, static_cast<unsigned short>(8080));
 		UDPCommunicator comm2(con, static_cast<unsigned short>(8081));
 
-		CHECK_NOTHROW(comm1.Connect(*con, "localhost", 8081));
+		REQUIRE_NOTHROW(comm1.Connect(*con, "localhost", 8081));
 		CAPTURE(comm1.remote_address());
-		CHECK(comm1.remote_address() == "127.0.0.1");
+		REQUIRE(comm1.remote_address() == "127.0.0.1");
 		CAPTURE(comm1.remote_port());
-		CHECK(comm1.remote_port() == 8081);
+		REQUIRE(comm1.remote_port() == 8081);
 
-		CHECK_THROWS(comm1.Connect(*con, "hostlocal"));
-		CHECK_THROWS(comm1.Connect(*con, "hostlocal", 1234));
-		CHECK_THROWS(comm1.Connect(*con, "localhost", -1));
+		REQUIRE_THROWS(comm1.Connect(*con, "hostlocal"));
+		REQUIRE_THROWS(comm1.Connect(*con, "hostlocal", 1234));
+		REQUIRE_THROWS(comm1.Connect(*con, "localhost", -1));
 	}
 
 
@@ -275,12 +275,12 @@ TEST_CASE("Testing connection establishment"){
 		auto comm1 = std::make_unique<TCPCommunicator>(con1);
 		auto comm2 = std::make_unique<TCPCommunicator>(con2, 8081);
 
-		CHECK_NOTHROW(comm1->Connect(*con1, "localhost", 8081));
-		CHECK_NOTHROW(comm2->Accept());
+		REQUIRE_NOTHROW(comm1->Connect(*con1, "localhost", 8081));
+		REQUIRE_NOTHROW(comm2->Accept());
 		CAPTURE(comm1->remote_address());
-		CHECK(comm1->remote_address() == "127.0.0.1");
+		REQUIRE(comm1->remote_address() == "127.0.0.1");
 		CAPTURE(comm1->remote_port());
-		CHECK(comm1->remote_port() == 8081);
+		REQUIRE(comm1->remote_port() == 8081);
 	}
 }
 
@@ -299,30 +299,30 @@ TEST_CASE("Testing UDPCommunicator", "[UDP]"){
 		string msg2 = "";
 
 		msg = "asdf";
-		CHECK_NOTHROW(com1->Send(msg));
-		CHECK_NOTHROW(com2->Receive());
-		CHECK_NOTHROW(msg2 = com2->GetMessage());
+		REQUIRE_NOTHROW(com1->Send(msg));
+		REQUIRE_NOTHROW(com2->Receive());
+		REQUIRE_NOTHROW(msg2 = com2->GetMessage());
 		CAPTURE(msg, msg2);
-		CHECK_THAT(msg, Equals( msg2));
+		REQUIRE_THAT(msg, Equals( msg2));
 
 		msg = "fdsa";
-		CHECK_NOTHROW(com2->Send(msg));
-		CHECK_NOTHROW(com1->Receive());
-		CHECK_NOTHROW(msg2 = com1->GetMessage());
+		REQUIRE_NOTHROW(com2->Send(msg));
+		REQUIRE_NOTHROW(com1->Receive());
+		REQUIRE_NOTHROW(msg2 = com1->GetMessage());
 		CAPTURE(msg, msg2);
-		CHECK_THAT(msg, Equals(msg2));
+		REQUIRE_THAT(msg, Equals(msg2));
 
 		auto com3 = std::make_unique<UDPCommunicator>(con);
 		com3->Connect(*con, "localhost", 2020);
 		msg = "hello";
-		CHECK_NOTHROW(com3->Send(msg));
-		CHECK_NOTHROW(com1->Receive());
-		CHECK_NOTHROW(com2->Receive());
+		REQUIRE_NOTHROW(com3->Send(msg));
+		REQUIRE_NOTHROW(com1->Receive());
+		REQUIRE_NOTHROW(com2->Receive());
 		msg1 = com1->GetMessage();
 		msg2 = com2->GetMessage();
-		CHECK_THAT(msg1, !Equals(msg));
+		REQUIRE_THAT(msg1, !Equals(msg));
 		CAPTURE(msg1, msg);
-		CHECK_THAT(msg2, !Equals(msg));
+		REQUIRE_THAT(msg2, !Equals(msg));
 		CAPTURE(msg2, msg);
 	}
 
@@ -338,19 +338,19 @@ TEST_CASE("Testing UDPCommunicator", "[UDP]"){
 
 		msg = com2->GetMessage();
 		std::reverse(msg.begin(), msg.end());
-		CHECK_NOTHROW(com2->Reply(msg));
+		REQUIRE_NOTHROW(com2->Reply(msg));
 		com1->Receive();
 		string msg2 = com1->GetMessage();
-		CHECK(msg2 == msg);
+		REQUIRE(msg2 == msg);
 		CAPTURE(msg2, msg);
 		msg.erase();
 		msg2.erase();
 
 		msg2 = "asdf";
-		CHECK_NOTHROW(com1->Reply(msg2));
+		REQUIRE_NOTHROW(com1->Reply(msg2));
 		com2->Receive();
 		msg = com2->GetMessage();
-		CHECK_THAT(msg, Equals(msg2));
+		REQUIRE_THAT(msg, Equals(msg2));
 		CAPTURE(msg, msg2);
 		msg.erase();
 		msg2.erase();
@@ -365,21 +365,21 @@ TEST_CASE("Testing UDPCommunicator", "[UDP]"){
 		com2->Receive();
 		msg1 = com1->GetMessage();
 		msg2 = com2->GetMessage();
-		CHECK_THAT(msg, Equals(msg1));
-		CHECK_THAT(msg, !Equals(msg2));
+		REQUIRE_THAT(msg, Equals(msg1));
+		REQUIRE_THAT(msg, !Equals(msg2));
 		CAPTURE(msg, msg1, msg2);
 		msg.erase();
 		msg1.erase();
 		msg2.erase();
 
 		msg = "qwerty";
-		CHECK_NOTHROW(com1->Reply(msg));
+		REQUIRE_NOTHROW(com1->Reply(msg));
 		com2->Receive();
 		msg1 = com2->GetMessage();
 		com3->Receive();
 		msg2 = com3->GetMessage();
-		CHECK_THAT(msg, Equals(msg1));
-		CHECK_THAT(msg, !Equals(msg2));
+		REQUIRE_THAT(msg, Equals(msg1));
+		REQUIRE_THAT(msg, !Equals(msg2));
 		CAPTURE(msg, msg1, msg2);
 	}
 
@@ -430,7 +430,7 @@ TEST_CASE("Testing UDPCommunicator", "[UDP]"){
 			msg2 = agent2->GetMessage();
 			INFO("msg1: " + msg1 + "\tmsg2: " + msg2);
 			CAPTURE(msg1, msg2);
-			CHECK_THAT(msg1, Equals(msg2));
+			REQUIRE_THAT(msg1, Equals(msg2));
 			
 
 			agent2->Send(msg2);
@@ -438,7 +438,7 @@ TEST_CASE("Testing UDPCommunicator", "[UDP]"){
 			msg1 = agent1->GetMessage();
 			INFO("msg1: " + msg1 + "\tmsg2: " + msg2);
 			CAPTURE(msg1, msg2);
-			CHECK_THAT(msg1, Equals(msg2));
+			REQUIRE_THAT(msg1, Equals(msg2));
 			msg1.erase();
 			msg2.erase();
 		}
@@ -463,7 +463,7 @@ TEST_CASE("Testing UDPCommunicator", "[UDP]"){
 			msg2 = agent2->GetMessage();
 			INFO("msg1: " + msg1 + "\tmsg2: " + msg2);
 			CAPTURE(msg1, msg2);
-			CHECK_THAT(msg1, Equals(msg2));
+			REQUIRE_THAT(msg1, Equals(msg2));
 			
 		
 
@@ -472,7 +472,7 @@ TEST_CASE("Testing UDPCommunicator", "[UDP]"){
 			msg1 = agent1->GetMessage();
 			INFO("msg1: " + msg1 + "\tmsg2: " + msg2);
 			CAPTURE(msg1, msg2);
-			CHECK_THAT(msg1, Equals(msg2));
+			REQUIRE_THAT(msg1, Equals(msg2));
 			msg1.erase();
 			msg2.erase();
 		}
@@ -497,24 +497,24 @@ TEST_CASE("Testing TCPCommunicator", "[TCP]"){
 
 		string msg1("asdf");
 		string msg2;
-		CHECK_NOTHROW(client->Send(msg1));
+		REQUIRE_NOTHROW(client->Send(msg1));
 		con2->run();
-		CHECK_NOTHROW(server->Receive());
+		REQUIRE_NOTHROW(server->Receive());
 		con1->run();
 
 		msg2 = server->GetMessage();
 		CAPTURE(msg1, msg2);
-		CHECK_THAT(msg1, Equals(msg2));
+		REQUIRE_THAT(msg1, Equals(msg2));
 
 		std::reverse(msg2.begin(), msg2.end());
-		CHECK_NOTHROW(server->Send(msg2));
+		REQUIRE_NOTHROW(server->Send(msg2));
 		con1->run();
-		CHECK_NOTHROW(client->Receive());
+		REQUIRE_NOTHROW(client->Receive());
 		con2->run();
 
 		msg1 = client->GetMessage();
 		CAPTURE(msg1, msg2);
-		CHECK_THAT(msg1, Equals(msg2));
+		REQUIRE_THAT(msg1, Equals(msg2));
 	}
 
 	SECTION("TCP reply", "[TCP][REPLY]"){
@@ -539,31 +539,31 @@ auto client1 = std::make_unique<TCPCommunicator>(con1);
 
 		msg1 = server1->GetMessage();
 		msg2 = "hello";
-		CHECK_NOTHROW(server1->Reply(msg2));
+		REQUIRE_NOTHROW(server1->Reply(msg2));
 		con2->run();
 		client1->Receive();
 		con1->run();
 		msg1 = client1->GetMessage();
 		CAPTURE(msg1, msg2);
-		CHECK_THAT(msg1, Equals(msg2));
+		REQUIRE_THAT(msg1, Equals(msg2));
 
 		msg1 = "goodbye";
-		CHECK_NOTHROW(client1->Reply(msg1));
+		REQUIRE_NOTHROW(client1->Reply(msg1));
 		con1->run();
 		server1->Receive();
 		con2->run();
 		msg2 = server1->GetMessage();
 		CAPTURE(msg1, msg2);
-		CHECK_THAT(msg1, Equals(msg2));
+		REQUIRE_THAT(msg1, Equals(msg2));
 
 		msg1 = "goodbye";
-		CHECK_NOTHROW(client1->Reply(msg1));
+		REQUIRE_NOTHROW(client1->Reply(msg1));
 		con1->run();
 		server1->Receive();
 		con2->run();
 		msg2 = server1->GetMessage();
 		CAPTURE(msg1, msg2);
-		CHECK_THAT(msg1, Equals(msg2));
+		REQUIRE_THAT(msg1, Equals(msg2));
 	}
 
 	SECTION("TCP multiple agents", "[TCP][MULTI]"){
@@ -634,7 +634,7 @@ auto client1 = std::make_unique<TCPCommunicator>(con1);
 			else con1->run();
 			msg2 = agent2->GetMessage();
 			CAPTURE(msg1, msg2);
-			CHECK_THAT(msg1, Equals(msg2));
+			REQUIRE_THAT(msg1, Equals(msg2));
 			
 			agent2->Send(msg2);
 			if(i % 2 == 0) con2->run();
@@ -643,7 +643,7 @@ auto client1 = std::make_unique<TCPCommunicator>(con1);
 			if(i % 2 == 0) con1->run();
 			else con2->run();
 			msg1 = agent1->GetMessage();
-			CHECK_THAT(msg1, Equals(msg2));
+			REQUIRE_THAT(msg1, Equals(msg2));
 			CAPTURE(msg1, msg2);
 			msg1.erase();
 			msg2.erase();
@@ -661,50 +661,50 @@ TEST_CASE("Testing DBConnector", "[DB]"){
 		int grams = 5;
 		bool mass = true;
 
-		CHECK_NOTHROW(con.CreateIngredient(ingredient, grams, mass));
+		REQUIRE_NOTHROW(con.CreateIngredient(ingredient, grams, mass));
 		ingredient = "Olive Oil";
 		grams = 10;
-		CHECK_NOTHROW(con.CreateIngredient(ingredient, grams, mass));
-		CHECK_NOTHROW(con.UpdateIngredient(ingredient, -grams));
+		REQUIRE_NOTHROW(con.CreateIngredient(ingredient, grams, mass));
+		REQUIRE_NOTHROW(con.UpdateIngredient(ingredient, -grams));
 
 		ingredient.erase();
-		CHECK_NOTHROW(ingredient = con.GetIngredientByIndex(0));
+		REQUIRE_NOTHROW(ingredient = con.GetIngredientByIndex(0));
 
 		string recipe("Thyme in a bowl");
 		string instructions("Add 2 grams of thyme to bowl and stir");
-		CHECK_NOTHROW(con.CreateRecipe(recipe, instructions));
+		REQUIRE_NOTHROW(con.CreateRecipe(recipe, instructions));
 
 		float quantity = 2.;
-		CHECK_NOTHROW(con.MapRecipeToIngredient(recipe, quantity, "Thyme"));
+		REQUIRE_NOTHROW(con.MapRecipeToIngredient(recipe, quantity, "Thyme"));
 		vector<string> ing_storage;
 		vector<string> rec_storage;
 		vector<string> ins_storage;
 
-		CHECK_NOTHROW(ing_storage = con.GetIngredients(recipe));
+		REQUIRE_NOTHROW(ing_storage = con.GetIngredients(recipe));
 		CAPTURE(ing_storage.size());
-		CHECK(ing_storage.size() == 1);
+		REQUIRE(ing_storage.size() == 1);
 		CAPTURE(ing_storage[0]);
-		CHECK_THAT(ing_storage[0], Equals("Thyme"));
+		REQUIRE_THAT(ing_storage[0], Equals("Thyme"));
 		
-		CHECK_NOTHROW(rec_storage = con.GetRecipes(ing_storage));
+		REQUIRE_NOTHROW(rec_storage = con.GetRecipes(ing_storage));
 		CAPTURE(rec_storage.size());
-		CHECK(rec_storage.size() == 1);
+		REQUIRE(rec_storage.size() == 1);
 		CAPTURE(recipe, rec_storage[0]);
-		CHECK_THAT(recipe, Equals(rec_storage[0]));
+		REQUIRE_THAT(recipe, Equals(rec_storage[0]));
 
-		CHECK_NOTHROW(ins_storage = con.GetInstructions(rec_storage));
+		REQUIRE_NOTHROW(ins_storage = con.GetInstructions(rec_storage));
 		CAPTURE(ins_storage.size());
-		CHECK(ins_storage.size() == 1);
+		REQUIRE(ins_storage.size() == 1);
 		CAPTURE(instructions, ins_storage[0]);
-		CHECK_THAT(instructions, Equals(ins_storage[0]));
+		REQUIRE_THAT(instructions, Equals(ins_storage[0]));
 
 		vector<float> amount = {2.};
-		CHECK_NOTHROW(con.Reserve(ing_storage, amount));
-		CHECK_NOTHROW(con.Release(ing_storage, amount));
+		REQUIRE_NOTHROW(con.Reserve(ing_storage, amount));
+		REQUIRE_NOTHROW(con.Release(ing_storage, amount));
 
-		CHECK_NOTHROW(con.DeleteIngredient(ing_storage[0]));
-		CHECK_NOTHROW(con.DeleteRecipe(rec_storage[0]));
-		CHECK_NOTHROW(con.DeleteIngredient(ingredient));
+		REQUIRE_NOTHROW(con.DeleteIngredient(ing_storage[0]));
+		REQUIRE_NOTHROW(con.DeleteRecipe(rec_storage[0]));
+		REQUIRE_NOTHROW(con.DeleteIngredient(ingredient));
 
 		string ing;
 		try{
@@ -740,63 +740,63 @@ TEST_CASE("Testing DBConnector", "[DB]"){
 		int grams = 5;
 		bool mass = true;
 
-		CHECK_THROWS(con.CreateIngredient(ingredient, grams, mass));
+		REQUIRE_THROWS(con.CreateIngredient(ingredient, grams, mass));
 		ingredient = string(" ");
-		CHECK_THROWS(con.CreateIngredient(ingredient, grams, mass));
+		REQUIRE_THROWS(con.CreateIngredient(ingredient, grams, mass));
 
 		grams = -4;
-		CHECK_THROWS(con.CreateIngredient(good_ing, grams, mass));
+		REQUIRE_THROWS(con.CreateIngredient(good_ing, grams, mass));
 		string res;
 		CAPTURE(res);
-		CHECK_THROWS(res = con.GetIngredientByIndex(0));
-		CHECK_THROWS(con.GetIngredientByIndex(20));
-		CHECK_THROWS(con.GetIngredientByIndex(-1));
+		REQUIRE_THROWS(res = con.GetIngredientByIndex(0));
+		REQUIRE_THROWS(con.GetIngredientByIndex(20));
+		REQUIRE_THROWS(con.GetIngredientByIndex(-1));
 
 		con.CreateIngredient(good_ing, good_grams,  mass);
 
-		CHECK_THROWS(con.UpdateIngredient(ingredient, grams));
-		CHECK_THROWS(con.UpdateIngredient(ingredient, good_grams));
-		CHECK_THROWS(con.UpdateIngredient(good_ing, grams * 2));
+		REQUIRE_THROWS(con.UpdateIngredient(ingredient, grams));
+		REQUIRE_THROWS(con.UpdateIngredient(ingredient, good_grams));
+		REQUIRE_THROWS(con.UpdateIngredient(good_ing, grams * 2));
 
 		string bad_recipe("");
 		string bad_instructions("asdf");
 
-		CHECK_THROWS(con.CreateRecipe(bad_recipe, bad_instructions));
+		REQUIRE_THROWS(con.CreateRecipe(bad_recipe, bad_instructions));
 		bad_recipe = string(" ");
-		CHECK_THROWS(con.CreateRecipe(bad_recipe, bad_instructions));
+		REQUIRE_THROWS(con.CreateRecipe(bad_recipe, bad_instructions));
 		bad_instructions = string("");
-		CHECK_THROWS(con.CreateRecipe(good_recipe, bad_instructions));
+		REQUIRE_THROWS(con.CreateRecipe(good_recipe, bad_instructions));
 		bad_instructions = string(" ");
-		CHECK_THROWS(con.CreateRecipe(good_recipe, bad_instructions));
+		REQUIRE_THROWS(con.CreateRecipe(good_recipe, bad_instructions));
 		con.CreateRecipe(good_recipe, good_instructions);
 
-		CHECK_THROWS(con.MapRecipeToIngredient(good_recipe, good_grams, ingredient));
+		REQUIRE_THROWS(con.MapRecipeToIngredient(good_recipe, good_grams, ingredient));
 		ingredient = string("");
-		CHECK_THROWS(con.MapRecipeToIngredient(good_recipe, good_grams, ingredient));
-		CHECK_THROWS(con.MapRecipeToIngredient(good_recipe, grams, good_ing));
-		CHECK_THROWS(con.MapRecipeToIngredient(bad_recipe, good_grams, good_ing));
+		REQUIRE_THROWS(con.MapRecipeToIngredient(good_recipe, good_grams, ingredient));
+		REQUIRE_THROWS(con.MapRecipeToIngredient(good_recipe, grams, good_ing));
+		REQUIRE_THROWS(con.MapRecipeToIngredient(bad_recipe, good_grams, good_ing));
 		bad_recipe = string("");
-		CHECK_THROWS(con.MapRecipeToIngredient(bad_recipe, good_grams, good_ing));
+		REQUIRE_THROWS(con.MapRecipeToIngredient(bad_recipe, good_grams, good_ing));
 		con.MapRecipeToIngredient(good_recipe, good_grams, good_ing);
 
-		CHECK_THROWS(con.GetIngredients(bad_recipe));
-		CHECK_THROWS(con.GetRecipes(bad_ing_storage));
-		CHECK_THROWS(con.GetInstructions(bad_rec_storage));
+		REQUIRE_THROWS(con.GetIngredients(bad_recipe));
+		REQUIRE_THROWS(con.GetRecipes(bad_ing_storage));
+		REQUIRE_THROWS(con.GetInstructions(bad_rec_storage));
 
-		CHECK_THROWS(con.Reserve(bad_ing_storage, bad_ing_amount));
-		CHECK_THROWS(con.Reserve(good_ing_storage, bad_ing_amount));
-		CHECK_THROWS(con.Reserve(bad_ing_storage, good_ing_amount));
+		REQUIRE_THROWS(con.Reserve(bad_ing_storage, bad_ing_amount));
+		REQUIRE_THROWS(con.Reserve(good_ing_storage, bad_ing_amount));
+		REQUIRE_THROWS(con.Reserve(bad_ing_storage, good_ing_amount));
 
 		con.Reserve(good_ing_storage, good_ing_amount);
 
-		CHECK_THROWS(con.Release(bad_ing_storage, bad_ing_amount));
-		CHECK_THROWS(con.Release(bad_ing_storage, good_ing_amount));
-		CHECK_THROWS(con.Release(good_ing_storage, bad_ing_amount));
+		REQUIRE_THROWS(con.Release(bad_ing_storage, bad_ing_amount));
+		REQUIRE_THROWS(con.Release(bad_ing_storage, good_ing_amount));
+		REQUIRE_THROWS(con.Release(good_ing_storage, bad_ing_amount));
 
 		con.Release(good_ing_storage, good_ing_amount);
 
-		CHECK_THROWS(con.DeleteIngredient(ingredient));
-		CHECK_THROWS(con.DeleteRecipe(bad_recipe));
+		REQUIRE_THROWS(con.DeleteIngredient(ingredient));
+		REQUIRE_THROWS(con.DeleteRecipe(bad_recipe));
 		
 		con.DeleteIngredient(good_ing);
 		con.DeleteRecipe(good_recipe);
@@ -820,7 +820,7 @@ TEST_CASE("Testing FileManager", "[FM]"){
 	Logger::GetInstance().SetLevel(debug_level::ERROR);
 	SECTION("Testing good inputs"){
 		FileManager f("pages/index.html");
-		CHECK(f.getLineCount() == 15);
+		REQUIRE(f.getLineCount() == 15);
 		std::ifstream file;
 		file.open("../pages/index.html");
 		file.seekg(0,file.beg);
@@ -828,7 +828,7 @@ TEST_CASE("Testing FileManager", "[FM]"){
 		int i = 0;
 		while(std::getline(file, line)){
 			CAPTURE(line, f.getLine(i));
-			CHECK_THAT(line, Equals(f.getLine(i)));
+			REQUIRE_THAT(line, Equals(f.getLine(i)));
 			i += 1;
 		}
 		file.close();
@@ -841,23 +841,23 @@ TEST_CASE("Testing MessageManager", "[MM]"){
 		MessageManager manager;
 
 		int idx = -2;
-		CHECK_NOTHROW(idx = manager.GetFreeBuffer());
-		CHECK(idx == 0);
+		REQUIRE_NOTHROW(idx = manager.GetFreeBuffer());
+		REQUIRE(idx == 0);
 		string message("Hello");
-		CHECK_NOTHROW(manager.StoreMessage(idx, message));
+		REQUIRE_NOTHROW(manager.StoreMessage(idx, message));
 		string stored;
-		CHECK_NOTHROW(stored = manager.GetMessageFrom(idx));
-		CHECK_THAT(stored, Equals(message));
+		REQUIRE_NOTHROW(stored = manager.GetMessageFrom(idx));
+		REQUIRE_THAT(stored, Equals(message));
 		
 		int idx2 = -2;
-		CHECK_NOTHROW(idx2 = manager.GetFreeBuffer());
-		CHECK(idx2 != -2);
+		REQUIRE_NOTHROW(idx2 = manager.GetFreeBuffer());
+		REQUIRE(idx2 != -2);
 		string message2("Goodbye");
-		CHECK_NOTHROW(manager.StoreMessage(idx2, message2));
+		REQUIRE_NOTHROW(manager.StoreMessage(idx2, message2));
 		string stored2 = "asntd";
-		CHECK_NOTHROW(stored2 = manager.Pop());
+		REQUIRE_NOTHROW(stored2 = manager.Pop());
 		INFO("[" << idx2 << "]'" << message2 << "' != '" << stored2 << "'");
-		CHECK_THAT(message2, Equals(stored2));
+		REQUIRE_THAT(message2, Equals(stored2));
 	}
 }
 
@@ -1045,19 +1045,19 @@ TEST_CASE("Testing multiple TCP agents", "[NM][TCP][MULTI]"){
 			agents[idx2]->Receive();
 			msg2 = agents[idx2]->GetFirstMessage();
 			CAPTURE(msg1, msg2);
-			CHECK_THAT(msg1, Equals(msg2));
+			REQUIRE_THAT(msg1, Equals(msg2));
 			
 			agents[idx2]->SendTo(msg2, addrs[i]);
 			agents[idx1]->Receive();
 			msg1 = agents[idx1]->GetFirstMessage();
 			CAPTURE(msg1, msg2);
-			CHECK_THAT(msg1, Equals(msg2));
+			REQUIRE_THAT(msg1, Equals(msg2));
 			
 			agents[idx2]->SendTo(msg2, addrs[i]);
 			agents[idx1]->Receive();
 			msg1 = agents[idx1]->GetFirstMessage();
 			CAPTURE(msg1, msg2);
-			CHECK_THAT(msg1, Equals(msg2));
+			REQUIRE_THAT(msg1, Equals(msg2));
 			msg1.erase();
 			msg2.erase();
 		}
@@ -1122,13 +1122,13 @@ TEST_CASE("Testing multiple UDP agents", "[NM][UDP][MULTI]"){
 			agents[idx2]->Receive();
 			msg2 = agents[idx2]->GetFirstMessage();
 			CAPTURE(msg1, msg2);
-			CHECK_THAT(msg1, Equals(msg2));
+			REQUIRE_THAT(msg1, Equals(msg2));
 			
 			agents[idx2]->SendTo(msg2, addrs[i]);
 			agents[idx1]->Receive();
 			msg1 = agents[idx1]->GetFirstMessage();
 			CAPTURE(msg1, msg2);
-			CHECK_THAT(msg1, Equals(msg2));
+			REQUIRE_THAT(msg1, Equals(msg2));
 			msg1.erase();
 			msg2.erase();
 		}
@@ -1232,7 +1232,7 @@ TEST_CASE("Testing Server", "[SRV]"){
 		udp_com->Receive();
 
 		CAPTURE(udp_com->GetFirstMessage());
-		CHECK_THAT(udp_com->GetFirstMessage(), Equals("OK"));
+		REQUIRE_THAT(udp_com->GetFirstMessage(), Equals("OK"));
 
 		server2->Listen();
 		tcp_com->SendTo("0", tcp_rec);
@@ -1240,7 +1240,7 @@ TEST_CASE("Testing Server", "[SRV]"){
 		tcp_com->Receive();
 
 		CAPTURE(tcp_com->GetFirstMessage());
-		CHECK_THAT(tcp_com->GetFirstMessage(), Equals("OK"));
+		REQUIRE_THAT(tcp_com->GetFirstMessage(), Equals("OK"));
 	}
 
 	SECTION("Testing addition and deletion requests in UDP", "[UDP][ADD][DEL]"){
@@ -1260,27 +1260,27 @@ TEST_CASE("Testing Server", "[SRV]"){
 		com->Receive();
 		string response = com->GetFirstMessage();
 		CAPTURE(response);
-		CHECK_THAT("OK", Equals(response));
+		REQUIRE_THAT("OK", Equals(response));
 
 		string result;
-		CHECK_NOTHROW(result = db->GetIngredientByIndex(0));
+		REQUIRE_NOTHROW(result = db->GetIngredientByIndex(0));
 		CAPTURE(result, ing1.name);
-		CHECK_THAT(result, Equals(ing1.name));
+		REQUIRE_THAT(result, Equals(ing1.name));
 
 		com->Send("20" + reqToString(ing1));
 		com->Receive();
 		response = com->GetFirstMessage();
 		CAPTURE(response);
-		CHECK_THAT(response, Equals("OK"));
-		CHECK_NOTHROW(result = db->GetIngredientByIndex(0));
+		REQUIRE_THAT(response, Equals("OK"));
+		REQUIRE_NOTHROW(result = db->GetIngredientByIndex(0));
 		CAPTURE(result);
-		CHECK(result.empty());
+		REQUIRE(result.empty());
 
 		com->Send("11|" + reqToString(rec1));
 		com->Receive();
 		response = com->GetFirstMessage();
 		CAPTURE(response);
-		CHECK_THAT(response, Equals("OK"));
+		REQUIRE_THAT(response, Equals("OK"));
 	}
 
 	SECTION("Testing addition and deletion requests in TCP", "[TCP][ADD][DEL]"){
@@ -1300,27 +1300,27 @@ TEST_CASE("Testing Server", "[SRV]"){
 		com->Receive();
 		string response = com->GetFirstMessage();
 		CAPTURE(response);
-		CHECK_THAT("OK", Equals(response));
+		REQUIRE_THAT("OK", Equals(response));
 
 		string result;
-		CHECK_NOTHROW(result = db->GetIngredientByIndex(0));
+		REQUIRE_NOTHROW(result = db->GetIngredientByIndex(0));
 		CAPTURE(result, ing1.name);
-		CHECK_THAT(result, Equals(ing1.name));
+		REQUIRE_THAT(result, Equals(ing1.name));
 
 		com->Send("20" + reqToString(ing1));
 		com->Receive();
 		response = com->GetFirstMessage();
 		CAPTURE(response);
-		CHECK_THAT(response, Equals("OK"));
-		CHECK_NOTHROW(result = db->GetIngredientByIndex(0));
+		REQUIRE_THAT(response, Equals("OK"));
+		REQUIRE_NOTHROW(result = db->GetIngredientByIndex(0));
 		CAPTURE(result);
-		CHECK(result.empty());
+		REQUIRE(result.empty());
 
 		com->Send("11|" + reqToString(rec1));
 		com->Receive();
 		response = com->GetFirstMessage();
 		CAPTURE(response);
-		CHECK_THAT(response, Equals("OK"));
+		REQUIRE_THAT(response, Equals("OK"));
 	}
 
 	SECTION("Testing  reserving, and releasing in UDP", "[UDP][LIN][RES]"){
@@ -1450,7 +1450,7 @@ TEST_CASE("Testing Server", "[SRV]"){
 			com->Receive();
 			string res = com->GetFirstMessage();
 			CAPTURE(recipe, res);
-			CHECK_THAT(recipe, Equals(res));
+			REQUIRE_THAT(recipe, Equals(res));
 		}
 
 
@@ -1492,7 +1492,7 @@ TEST_CASE("Testing Server", "[SRV]"){
 
 		for(int i = 0; i < tokens.size() / 2; i += 1){
 			CAPTURE(tokens[i], union_set);
-			CHECK(std::find(union_set.begin(), union_set.end(), tokens[i]) != union_set.end());
+			REQUIRE(std::find(union_set.begin(), union_set.end(), tokens[i]) != union_set.end());
 		}
 
 

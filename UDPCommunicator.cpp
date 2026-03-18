@@ -8,10 +8,12 @@
 
 #include <cmath>
 #include <cstddef>
+#include <ratio>
 #include <regex>
 #include <stdexcept>
 #include <string.h>
 #include <string>
+#include <thread>
 
 #include "UDPCommunicator.hpp"
 #include "CommunicatorExceptions.hpp"
@@ -272,7 +274,9 @@ void UDPCommunicator::Receive(bool async){
 					boost::asio::placeholders::bytes_transferred));
 		}
 		else{
-			while((transferred = socket->receive(buffer(*recv_buffer))) == 0){}
+			while((transferred = socket->receive(buffer(*recv_buffer))) == 0){
+				std::this_thread::sleep_for(std::chrono::milliseconds(10));
+			}
 		}
 	}
 	updateLastActivity();
