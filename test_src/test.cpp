@@ -16,6 +16,7 @@
 #include <catch2/generators/catch_generators_adapters.hpp>
 #include <catch2/matchers/catch_matchers.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
+#include <chrono>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -1208,6 +1209,7 @@ struct riPair {
 TEST_CASE("Testing Server", "[SRV]"){
 	Logger::GetInstance().SetLevel(debug_level::ERROR);
 	SECTION("Testing syn", "[TCP][UDP][SYN]"){
+		boost::asio::io_context dummy_con;
 		std::unique_ptr<IDB> db1 = std::make_unique<DBConnector>("jdbc:mariadb://localhost:3306/FoodServerTest");
 		auto messenger1 = std::make_unique<NetMessenger>(udp, 2021);
 		auto server1 = std::make_unique<Server>(*messenger1, std::move(db1));
@@ -1227,20 +1229,39 @@ TEST_CASE("Testing Server", "[SRV]"){
 		auto udp_com = std::make_unique<NetMessenger>(udp);
 		auto tcp_com = std::make_unique<NetMessenger>(tcp);
 
-		server1->Listen();
-		udp_com->SendTo("0", udp_rec);
-		udp_com->Receive();
+		std::thread server1_thread([&server1](){
+			server1->Listen();
+		});
+		udp_com->Connect(dummy_con, udp_rec->address, udp_rec->port);
+		udp_com->Send("0");
+		udp_com->Receive(false);
 
-		CAPTURE(udp_com->GetFirstMessage());
-		REQUIRE_THAT(udp_com->GetFirstMessage(), Equals("OK"));
+		string res = udp_com->GetFirstMessage();
 
-		server2->Listen();
+		REQUIRE_THAT(res, Equals("OK"));
+		server1->Stop();
+		CAPTURE(res);
+	
+
+		std::thread server2_thread([&server2](){
+			server2->Listen();
+		});
+		std::this_thread::sleep_for(std::chrono::milliseconds(100));
 		tcp_com->SendTo("0", tcp_rec);
+		tcp_com->Receive(false);
 
-		tcp_com->Receive();
+		res = tcp_com->GetFirstMessage();
+		CAPTURE(res);
+		REQUIRE_THAT(res, Equals("OK"));
 
-		CAPTURE(tcp_com->GetFirstMessage());
-		REQUIRE_THAT(tcp_com->GetFirstMessage(), Equals("OK"));
+		server2->Stop();
+		std::this_thread::sleep_for(std::chrono::milliseconds(100));
+		if(server1_thread.joinable()){  
+			server1_thread.join();
+		}
+		if(server2_thread.joinable()){  
+			server2_thread.join();
+		}
 	}
 
 	SECTION("Testing addition and deletion requests in UDP", "[UDP][ADD][DEL]"){
@@ -1281,6 +1302,8 @@ TEST_CASE("Testing Server", "[SRV]"){
 		response = com->GetFirstMessage();
 		CAPTURE(response);
 		REQUIRE_THAT(response, Equals("OK"));
+
+		server->Stop();
 	}
 
 	SECTION("Testing addition and deletion requests in TCP", "[TCP][ADD][DEL]"){
@@ -1321,6 +1344,7 @@ TEST_CASE("Testing Server", "[SRV]"){
 		response = com->GetFirstMessage();
 		CAPTURE(response);
 		REQUIRE_THAT(response, Equals("OK"));
+		server->Stop();
 	}
 
 	SECTION("Testing  reserving, and releasing in UDP", "[UDP][LIN][RES]"){
@@ -1354,6 +1378,7 @@ TEST_CASE("Testing Server", "[SRV]"){
 		com->Send("2|a|0.25");
 		com->Receive();
 		response = com->GetFirstMessage();
+		server->Stop();
 	}
 
 	SECTION("Testing matchings in UDP", "[UDP][MTC]"){
@@ -1494,8 +1519,7 @@ TEST_CASE("Testing Server", "[SRV]"){
 			CAPTURE(tokens[i], union_set);
 			REQUIRE(std::find(union_set.begin(), union_set.end(), tokens[i]) != union_set.end());
 		}
-
-
+		server->Stop();
 	}
 
 }

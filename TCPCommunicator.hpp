@@ -3,6 +3,7 @@
 #include "NetCommunicator.hpp"
 #include <boost/date_time/time_defs.hpp>
 #include <boost/system/detail/error_code.hpp>
+#include <cstddef>
 #include <memory>
 
 
@@ -28,6 +29,9 @@ class TCPCommunicator : public Communicator, std::enable_shared_from_this<TCPCom
 		
 		void StoreMessage(const boost::system::error_code &err,
 				std::size_t transferred) override;
+
+		void HandleAccept(const boost::system::error_code &err,
+				std::size_t transferred);
 		
 	public:
 		
@@ -40,8 +44,8 @@ class TCPCommunicator : public Communicator, std::enable_shared_from_this<TCPCom
 		bool isServerMode() const { return is_server_mode; }
 		bool isConnected() const { return connected && socket && socket->is_open(); }
 
-		void Accept();
-		void Accept(const AcceptConfig& config);
+		void Accept(bool async=false) override;
+		void Accept(const AcceptConfig& config, bool async=false);
 		AcceptErrorType categorizeAcceptError(const boost::system::error_code& err);
 
 		
@@ -58,8 +62,8 @@ class TCPCommunicator : public Communicator, std::enable_shared_from_this<TCPCom
 			io_context_ref(con),
 			is_server_mode(false)
 			{
-				recv_buffer = std::make_unique<std::string>(std::string("0", 10));
-				outgoing = boost::make_shared<std::string>(std::string(" ", 1024));
+				recv_buffer = std::make_unique<std::string>(std::string(msgSize, ' '));
+				outgoing = boost::make_shared<std::string>(std::string(msgSize, ' '));
 				InitializeTimers(*con);
 			}
 
@@ -73,8 +77,8 @@ class TCPCommunicator : public Communicator, std::enable_shared_from_this<TCPCom
 			io_context_ref(con),
 			is_server_mode(true)
 			{
-				recv_buffer = std::make_unique<std::string>(std::string("0", 10));
-				outgoing = boost::make_shared<std::string>(std::string(" ", 1024));
+				recv_buffer = std::make_unique<std::string>(std::string(msgSize, ' '));
+				outgoing = boost::make_shared<std::string>(std::string(msgSize, ' '));
 				InitializeTimers(*con);
 			}
 
@@ -86,8 +90,8 @@ class TCPCommunicator : public Communicator, std::enable_shared_from_this<TCPCom
 			io_context_ref(con),
 			is_server_mode(true)
 			{
-				recv_buffer = std::make_unique<std::string>(std::string("0", 10));
-				outgoing = boost::make_shared<std::string>(std::string("", 1024));
+				recv_buffer = std::make_unique<std::string>(std::string(msgSize, ' '));
+				outgoing = boost::make_shared<std::string>(std::string(msgSize, ' '));
 				InitializeTimers(*con);
 			}
 
@@ -116,7 +120,7 @@ class TCPCommunicator : public Communicator, std::enable_shared_from_this<TCPCom
 			std::swap(first.io_context_ref, second.io_context_ref);
 		}
 
-		void Send(std::string message) override;
+		void Send(std::string message, bool async=true) override;
 		void Reply(std::string message) override;
 		
 		void Receive(bool async=true) override;

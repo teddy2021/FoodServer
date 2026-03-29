@@ -1,6 +1,8 @@
 
 
+#include <any>
 #include <memory>
+#include <stdexcept>
 #include <thread>
 #include <algorithm>
 #include <utility>
@@ -25,9 +27,9 @@ Server::~Server(){
 	Logger::GetInstance().log("[Server::~Server] shutting down", debug_level::INFO);
 	running = false;
 	if(!connections.empty()){
-		for(Recipient r : connections){
+		for(auto con : connections){
 			try{  
-				messenger.SendTo("Shutdown", r);
+				con->Send("Shutdown");
 			}
 			catch(std::runtime_error &rt_err){
 				Logger::GetInstance().log("[Server::~Server] Failed to send shutdown to connection: " + std::string(rt_err.what()), debug_level::WARN);
@@ -163,19 +165,19 @@ void Server::CheckRequest(string fcn, Request request){
 }
 
 
-Server::Server(protocol_type type): mtx(), messenger(type), db(new DBConnector()), connections(){
+Server::Server(protocol_type type): mtx(), messenger(std::make_shared<NetMessenger>(type)), db(new DBConnector()), connections(){
 	Logger::GetInstance().log("[Server::Server] protocol type", debug_level::INFO);
 	worker_count = std::thread::hardware_concurrency();
 	next_worker = 1;
 }
 
-Server::Server(protocol_type type, unsigned short int port): mtx(), messenger(type, port), db(new DBConnector()), connections(){
+Server::Server(protocol_type type, unsigned short int port): mtx(), messenger(std::make_shared<NetMessenger>(type, port)), db(new DBConnector()), connections(){
 	Logger::GetInstance().log("[Server::Server] protocol type and port: " + std::to_string(port), debug_level::INFO);
 	worker_count = std::thread::hardware_concurrency();
 	next_worker = 1;
 }
 
-Server::Server(NetMessenger net): mtx(), messenger(net), db(new DBConnector()), connections(){
+Server::Server(NetMessenger net): mtx(), messenger(std::make_shared<NetMessenger>(std::move( net ))), db(new DBConnector()), connections(){
 	Logger::GetInstance().log("[Server::Server] NetMessenger", debug_level::INFO);
 	db = std::make_unique<DBConnector>();
 	const auto processor_count = std::thread::hardware_concurrency();
@@ -184,15 +186,43 @@ Server::Server(NetMessenger net): mtx(), messenger(net), db(new DBConnector()), 
 }
 
 
+void Server::Accept(){
+	mtx.lock();
+	if(!accepting){
+		Logger::GetInstance().log("[Server::Accept] starting accept", debug_level::DEBUG);
+		accepting = true;
+		messenger->Accept(false);
+	}
+	mtx.unlock();
+}
+
 void Server::Listen(){
 	Logger::GetInstance().log("[Server::Listen] listening for requests", debug_level::INFO);
+	Accept();
 	running = true;
 	while(running){
-		mtx.lock();
+		Accept();
 		Logger::GetInstance().log("[Server::Listen] Receiving.", debug_level::DEBUG);
-		messenger.Receive();
-		string message = messenger.GetFirstMessage();
-		Logger::GetInstance().log("[Server::Listen] received " + message, debug_level::DEBUG);
+		try{
+			mtx.lock();
+			messenger->Receive(false);
+			accepting = false;
+			mtx.unlock();
+		}
+		catch(std::runtime_error e){
+			Logger::GetInstance().log("[Server::Listen] runtime error thrown while receiving: " + string(e.what()), debug_level::ERROR);
+		}
+		mtx.lock();
+		string message = messenger->GetFirstMessage();
+		mtx.unlock();
+		Logger::GetInstance().log("[Server::Listen] received '" + message + "'", debug_level::DEBUG);
+		if(message.find_first_not_of(' ') == std::string::npos || message.empty()){
+			Logger::GetInstance().log("[Server::Listen] message received is empty.", debug_level::ERROR);
+			running = true;
+			mtx.unlock();
+			continue;
+
+		}
 		httpreq h_request;
 		Request p_request;
 		string first_seven = message.substr(0,7);
@@ -203,17 +233,31 @@ void Server::Listen(){
 		else{
 			p_request = ParseRequest(message);
 		}
-		auto prev_con = std::find(connections.begin(), connections.end(), messenger.GetRemoteEndpoint());
+		auto prev_con = std::find(connections.begin(), connections.end(), messenger);
 		if(prev_con == connections.end()){
-			connections.push_back(messenger.GetRemoteEndpoint());
+			if(messenger->GetProtocol() == tcp){
+				connections.push_back(messenger);
+				messenger = std::make_shared<NetMessenger>(messenger->GetProtocol(), nxtPrt);
+			}
+			else{
+				auto clientMessenger = std::make_shared<NetMessenger>(messenger->GetProtocol(), nxtPrt);
+				auto endpoint = messenger->GetRemoteEndpoint();
+				clientMessenger->Connect(*messenger->GetContext(), endpoint->address, endpoint->port);
+				connections.push_back(clientMessenger);
+			}
+			nxtPrt += 1;
 			p_request->connection = connections.size() - 1;
 		}
 		else{
 			p_request->connection = (int)(prev_con - connections.begin());
 		}
 		running = DoRequest(p_request);
-		mtx.unlock();
 	}
+}
+
+void Server::Stop(){
+	Logger::GetInstance().log("[Server::Stop] stopping server", debug_level::INFO);
+	running = false;
 }
 
 
@@ -583,11 +627,11 @@ void Server::Respond(Request request, string message){
 }
 
 void Server::SendToNthConnection(string message, int n){
-	Logger::GetInstance().log("[Server::SendToNthConnection] sending to connection index: " + std::to_string(n), debug_level::DEBUG);
+	Logger::GetInstance().log("[Server::SendToNthConnection] sending '" + message + "'to connection index: " + std::to_string(n), debug_level::DEBUG);
 	if(message.empty()){
 		std::string error_msg = "[Server::SendToNthConnection('', " + 
 			   std::to_string(n) + ")] empty message.";
-		Logger::GetInstance().log("[Server::SendToNthConnection] " + error_msg, debug_level::ERROR);
+		Logger::GetInstance().log(error_msg, debug_level::ERROR);
 		throw empty_response_exception(error_msg);
 	}
 	if(n < 0 || n > connections.size()){
@@ -595,13 +639,11 @@ void Server::SendToNthConnection(string message, int n){
 					", " + std::to_string(n) + ")]: " + std::to_string(n) +	
 					" out of bounds for range of " + 
 					std::to_string(connections.size()) + ".");
-		Logger::GetInstance().log("[Server::SendToNthConnection] " + error_msg, debug_level::ERROR);
+		Logger::GetInstance().log( error_msg, debug_level::ERROR);
 		throw std::out_of_range(error_msg);
 	}
 	if(n < connections.size() && n >= 0){
-		Recipient addr;
-	    addr = connections[n];
-		messenger.SendTo(message, addr);
+		connections[n]->Send(message);
 	}
 }
 

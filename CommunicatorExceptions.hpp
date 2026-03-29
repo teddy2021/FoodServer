@@ -14,6 +14,7 @@ enum class SocketStateError{
 
 enum class SendError{ None, NotConnected, Timeout, NetworkError, BufferOverflow };
 enum class ReceiveError{ None, Timeout, ConnectionClosed, NetworkError, BufferError };
+enum class AcceptError{ None, Transient, Resource, Fatal, Timeout };
 
 class CommunicatorException : public std::exception{
 protected:
@@ -59,6 +60,17 @@ public:
         : CommunicatorException(SocketStateError::NetworkError, ctx, msg), recvError(err) {}
 
     ReceiveError getReceiveError() const noexcept{ return recvError; }
+};
+
+class AcceptException : public CommunicatorException{
+private:
+    AcceptError acceptError;
+
+public:
+    AcceptException(AcceptError err, const std::string& ctx, const std::string& msg)
+        : CommunicatorException(SocketStateError::NetworkError, ctx, msg), acceptError(err) {}
+
+    AcceptError getAcceptError() const noexcept{ return acceptError; }
 };
 
 class OperationTimeoutException : public CommunicatorException{

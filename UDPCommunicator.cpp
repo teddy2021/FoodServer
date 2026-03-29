@@ -5,10 +5,9 @@
 #include <boost/asio/ts/internet.hpp>
 #include <boost/bind/bind.hpp>
 #include <boost/lexical_cast.hpp>
+#include <boost/algorithm/string/trim.hpp>
 
-#include <cmath>
 #include <cstddef>
-#include <ratio>
 #include <regex>
 #include <stdexcept>
 #include <string.h>
@@ -103,6 +102,7 @@ string UDPCommunicator::GetMessage(){
 	if(out.empty()){
 		return "";
 	}
+	boost::algorithm::trim(out);
 	return out;
 }
 
@@ -123,12 +123,15 @@ void UDPCommunicator::ResizeBuffer(unsigned int size){
 
 void UDPCommunicator::ResetBuffer(){
 	Logger::GetInstance().log("[UDPCommunicator::ResetBuffer] clearing and setting incoming buffer size to " + std::to_string(msgSize), debug_level::INFO);
-	recv_buffer->clear();
 	ResizeBuffer(msgSize);
+	for(int i = 0; i < msgSize; i += 1){
+		recv_buffer->at(i) = ' ';
+	}
 }
 
 void UDPCommunicator::ResizeOutgoingBuffer(unsigned int size){
 	outgoing->resize(size);
+	outgoing->clear();
 }
 
 
@@ -160,7 +163,7 @@ void UDPCommunicator::HandleSend(boost::shared_ptr<std::string> message,
 	}
 }
 
-void UDPCommunicator::Send(string message){
+void UDPCommunicator::Send(string message, bool async){
 	Logger::GetInstance().log("[UDPCommunicator::Send] sending message", debug_level::INFO);
 	auto s_state = validateSocketState();
 	
@@ -195,13 +198,18 @@ void UDPCommunicator::Send(string message){
 	SetSendTimeout([](const OperationTimeoutException& e){
 			Logger::GetInstance().log("[UDPCommunicator::Send] operation timed out.", debug_level::ERROR);
 			});
-	socket->async_send_to(buffer(*outgoing),
+	if(async){
+		socket->async_send_to(buffer(*outgoing),
 			remote_end,
 			boost::bind(&UDPCommunicator::HandleSend,
 				this,
 				outgoing,
 				boost::asio::placeholders::error, 
 				boost::asio::placeholders::bytes_transferred));
+	}
+	else{
+		socket->send(buffer( *outgoing ));
+	}	
 	runContext();
 
 }
@@ -231,12 +239,12 @@ void UDPCommunicator::Reply(string message){
 			Logger::GetInstance().log("[UDPCommunicator::Reply] operation timed out", debug_level::ERROR);
 			});
 	socket->async_send_to(buffer(*outgoing),
-			remote_end,	
-			boost::bind(&UDPCommunicator::HandleSend,
-				this,
-				outgoing,
-				boost::asio::placeholders::error, 
-				boost::asio::placeholders::bytes_transferred));
+		remote_end,	
+		boost::bind(&UDPCommunicator::HandleSend,
+			this,
+			outgoing,
+			boost::asio::placeholders::error, 
+			boost::asio::placeholders::bytes_transferred));
 	runContext();
 }
 
@@ -256,12 +264,17 @@ void UDPCommunicator::Receive(bool async){
 		});
 	if(!connected){
 		Logger::GetInstance().log("[UDPCommunicator::Receive] Receiving on unconnected socket.", debug_level::DEBUG);
-	socket->async_receive_from(buffer(*recv_buffer),
-			remote_end,
-			boost::bind(&UDPCommunicator::StoreMessage, 
-				this, 
-				boost::asio::placeholders::error,
-				boost::asio::placeholders::bytes_transferred));
+		if(async){
+			socket->async_receive_from(buffer(*recv_buffer),
+				remote_end,
+				boost::bind(&UDPCommunicator::StoreMessage, 
+					this, 
+					boost::asio::placeholders::error,
+					boost::asio::placeholders::bytes_transferred));
+		}
+		else{
+			socket->receive_from(buffer(*recv_buffer), remote_end);
+		}
 	}
 	else{
 		size_t transferred;
@@ -275,7 +288,7 @@ void UDPCommunicator::Receive(bool async){
 		}
 		else{
 			while((transferred = socket->receive(buffer(*recv_buffer))) == 0){
-				std::this_thread::sleep_for(std::chrono::milliseconds(10));
+				std::this_thread::sleep_for(std::chrono::milliseconds(100));
 			}
 		}
 	}

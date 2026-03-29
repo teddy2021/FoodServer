@@ -158,42 +158,38 @@ void Communicator::clearQueue(){
 }
 
 void Communicator::InitializeTimers(boost::asio::io_context& context){
-	sendTimer = std::make_unique<boost::asio::deadline_timer>(context);
-	receiveTimer = std::make_unique<boost::asio::deadline_timer>(context);
-	connectTimer = std::make_unique<boost::asio::deadline_timer>(context);
+	sendTimer = std::make_unique<boost::asio::system_timer>(context);
+	receiveTimer = std::make_unique<boost::asio::system_timer>(context);
+	connectTimer = std::make_unique<boost::asio::system_timer>(context);
 }
 
 void Communicator::CancelAllTimers(){
-	boost::system::error_code err;
-	if(sendTimer && sendTimer->cancel(err), err){
-		Logger::GetInstance().log("[Communicator::CancelAllTimers] Failed to cancel send timer: " + err.message(), debug_level::WARN);
+	if(sendTimer){
+		sendTimer->cancel();
 	}
-	if(receiveTimer && receiveTimer->cancel(err), err){
-		Logger::GetInstance().log("[Communicator::CancelAllTimers] Failed to cancel receive timer: " + err.message(), debug_level::WARN);
+	if(receiveTimer){
+		receiveTimer->cancel();
 	}
-	if(connectTimer && connectTimer->cancel(err), err){
-		Logger::GetInstance().log("[Communicator::CancelAllTimers] Failed to cancel connect timer: " + err.message(), debug_level::WARN);
+	if(connectTimer){
+		connectTimer->cancel();
 	}
 }
 
 void Communicator::CancelSendTimer(){
-	boost::system::error_code err;
-	if(sendTimer && sendTimer->cancel(err), err){
-		Logger::GetInstance().log("[Communicator::CancelSendTimer] Failed to cancel: " + err.message(), debug_level::WARN);
+	if(sendTimer){
+		sendTimer->cancel();
 	}
 }
 
 void Communicator::CancelReceiveTimer(){
-	boost::system::error_code err;
-	if(receiveTimer && receiveTimer->cancel(err), err){
-		Logger::GetInstance().log("[Communicator::CancelReceiveTimer] Failed to cancel: " + err.message(), debug_level::WARN);
+	if(receiveTimer){
+		receiveTimer->cancel();
 	}
 }
 
 void Communicator::CancelConnectTimer(){
-	boost::system::error_code err;
-	if(connectTimer && connectTimer->cancel(err), err){
-		Logger::GetInstance().log("[Communicator::CancelConnectTimer] Failed to cancel: " + err.message(), debug_level::WARN);
+	if(connectTimer){
+		connectTimer->cancel();
 	}
 }
 

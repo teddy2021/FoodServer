@@ -1,5 +1,6 @@
 #pragma once
 #include <boost/asio.hpp>
+#include <boost/asio/io_context.hpp>
 #include <memory>
 
 #include "NetCommunicator.hpp"
@@ -27,7 +28,7 @@ class NetMessenger{
 
 
 		void RunContext();
-		void SendNext();
+		void SendNext(bool async=true);
 		std::string GetMessage(int buffer);
 
 	public:
@@ -55,14 +56,19 @@ class NetMessenger{
 		};
 
 
-		void Receive();
-		void Send(std::string message);
-		void SendTo(std::string message, Recipient recipient);
+		void Receive(bool async=true);
+		void Accept(bool async=false);
+		
+		std::shared_ptr<boost::asio::io_context> GetContext();
+		void Send(std::string message, bool async=true);
+		void SendTo(std::string message, Recipient recipient, bool async=true);
 		void ReplyTo(std::string message, Recipient recipient);
 		void Connect(boost::asio::io_context& context, std::string address, unsigned short port);
 
 		std::string GetFirstMessage();
 		Recipient GetRemoteEndpoint();
+
+		protocol_type GetProtocol();
 
 };
 

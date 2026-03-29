@@ -20,15 +20,18 @@ typedef std::shared_ptr<struct req> Request;
 class Server{
 
 	private:
-		NetMessenger messenger;
+		std::shared_ptr<NetMessenger> messenger;
 		std::unique_ptr<IDB> db;
 		std::unordered_map<std::string, float> groceries;
 
+		unsigned short int nxtPrt = 4052;
+
 		unsigned short int next_worker;
 		int worker_count;
-		std::vector<Recipient> connections;
+		std::vector<std::shared_ptr<NetMessenger>> connections;
 		std::mutex mtx;
 		bool running = false;
+		bool accepting = false;
 
 		/**
 		 * Splits a request into tokens by pipe seperators
@@ -130,6 +133,8 @@ class Server{
 
 		void Respond(Request request, std::string message);
 
+		void Accept();
+
 	public:
 
 		Server(){};
@@ -138,7 +143,7 @@ class Server{
 		Server(NetMessenger net);
 
 		Server(NetMessenger & net, std::unique_ptr<IDB> dbconn): 
-			messenger(net), 
+			messenger(std::make_shared<NetMessenger>(net)), 
 			db(std::move(dbconn)), 
 			connections(){ 
 			worker_count = std::thread::hardware_concurrency();
@@ -177,6 +182,7 @@ class Server{
 			std::swap(first.connections, second.connections);
 		}
 		void Listen();
+		void Stop();
 };
 
 class empty_parameter_exception: public std::exception{

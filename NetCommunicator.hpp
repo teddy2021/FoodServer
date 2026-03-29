@@ -3,7 +3,7 @@
 #include <boost/asio.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/ts/internet.hpp>
-#include <boost/asio/deadline_timer.hpp>
+#include <boost/asio/system_timer.hpp>
 #include <boost/make_shared.hpp>
 #include <memory>
 #include <chrono>
@@ -46,9 +46,9 @@ class Communicator{
 		ConnectionStatus connStatus;
 		std::queue<std::string> messageQueue;
 
-		std::unique_ptr<boost::asio::deadline_timer> sendTimer;
-		std::unique_ptr<boost::asio::deadline_timer> receiveTimer;
-		std::unique_ptr<boost::asio::deadline_timer> connectTimer;
+		std::unique_ptr<boost::asio::system_timer> sendTimer;
+		std::unique_ptr<boost::asio::system_timer> receiveTimer;
+		std::unique_ptr<boost::asio::system_timer> connectTimer;
 		std::optional<std::chrono::steady_clock::time_point> sendStartTime;
 		std::optional<std::chrono::steady_clock::time_point> receiveStartTime;
 		std::optional<std::chrono::steady_clock::time_point> connectStartTime;
@@ -58,6 +58,7 @@ class Communicator{
 		std::function<void()> onDisconnected;
 		std::function<void()> onReconnected;
 		std::function<void(const std::string&)> onMessageQueued;
+		std::function<void(const AcceptException&)> onAcceptError;
 
 		virtual void StoreMessage(const boost::system::error_code &err,
 				std::size_t transferred){};
@@ -80,7 +81,7 @@ class Communicator{
 		void SetSendTimeout(Handler&& handler){
 			if(sendTimer && opConfig.sendTimeout.count() > 0){
 				sendTimer->cancel();
-				sendTimer->expires_from_now(boost::posix_time::milliseconds(opConfig.sendTimeout.count()));
+				sendTimer->expires_at(std::chrono::system_clock::now() + std::chrono::milliseconds(opConfig.sendTimeout.count()));
 				sendTimer->async_wait([this, handler = std::move(handler)](const boost::system::error_code& err){
 					if(err == boost::asio::error::operation_aborted) return;
 					auto elapsed = std::chrono::steady_clock::now() - *sendStartTime;
@@ -94,7 +95,7 @@ class Communicator{
 		void SetReceiveTimeout(Handler&& handler){
 			if(receiveTimer && opConfig.receiveTimeout.count() > 0){
 				receiveTimer->cancel();
-				receiveTimer->expires_from_now(boost::posix_time::milliseconds(opConfig.receiveTimeout.count()));
+				receiveTimer->expires_at(std::chrono::system_clock::now() + std::chrono::milliseconds(opConfig.receiveTimeout.count()));
 				receiveTimer->async_wait([this, handler = std::move(handler)](const boost::system::error_code& err){
 					if(err == boost::asio::error::operation_aborted) return;
 					auto elapsed = std::chrono::steady_clock::now() - *receiveStartTime;
@@ -109,7 +110,7 @@ class Communicator{
 		void SetConnectTimeout(Handler&& handler){
 			if(connectTimer && opConfig.connectTimeout.count() > 0){
 				connectTimer->cancel();
-				connectTimer->expires_from_now(boost::posix_time::milliseconds(opConfig.connectTimeout.count()));
+				connectTimer->expires_at(std::chrono::system_clock::now() + std::chrono::milliseconds(opConfig.connectTimeout.count()));
 				connectTimer->async_wait([this, handler = std::move(handler)](const boost::system::error_code& err){
 					if(err == boost::asio::error::operation_aborted) return;
 					auto elapsed = std::chrono::steady_clock::now() - *connectStartTime;
@@ -143,13 +144,14 @@ class Communicator{
 		virtual void ResetBuffer(){};
 		virtual std::string GetMessage(){return "";};
 
-		virtual void Send(std::string message){};
+		virtual void Send(std::string message, bool async=true){};
 		virtual void SendWithRetry(std::string message, int maxRetries = -1);
 		
 		virtual void Receive(bool async=false){};
 		virtual std::string remote_address(){return "";};
 		virtual unsigned short remote_port(){return 0;};
 
+		virtual void Accept(bool async){};
 		virtual void Connect(boost::asio::io_context & context, std::string address){};
 		virtual void Connect(boost::asio::io_context & context, std::string address, unsigned int port){};
 
@@ -165,6 +167,7 @@ class Communicator{
 		void setOnDisconnected(std::function<void()> callback);
 		void setOnReconnected(std::function<void()> callback);
 		void setOnMessageQueued(std::function<void(const std::string&)> callback);
+		void setOnAcceptError(std::function<void(const AcceptException&)> callback);
 
 		ConnectionHealth getConnectionHealth() const;
 		ConnectionStatus getConnectionStatus() const;

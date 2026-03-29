@@ -48,7 +48,7 @@ class UDPCommunicator : public Communicator{
 			io_context_ref(context){
 				recv_buffer = std::make_unique<std::string>();
 				recv_buffer->reserve(msgSize);
-				outgoing = boost::make_shared<std::string>(std::string("",1024));
+				outgoing = boost::make_shared<std::string>(std::string(msgSize, ' '));
 				InitializeTimers(*context);
 		};
 
@@ -60,7 +60,7 @@ class UDPCommunicator : public Communicator{
 			io_context_ref(context){
 				recv_buffer = std::make_unique<std::string>();
 				recv_buffer->reserve(msgSize);
-				outgoing = boost::make_shared<std::string>(std::string("",1024));
+				outgoing = boost::make_shared<std::string>(std::string(msgSize, ' '));
 				InitializeTimers(*context);
 		};
 		
@@ -72,7 +72,7 @@ class UDPCommunicator : public Communicator{
 			io_context_ref(context){
 				recv_buffer = std::make_unique<std::string>();
 				recv_buffer->reserve(msgSize);
-				outgoing = boost::make_shared<std::string>(std::string("",1024));
+				outgoing = boost::make_shared<std::string>(std::string(msgSize, ' '));
 				InitializeTimers(*context);
 		};
 
@@ -113,7 +113,7 @@ class UDPCommunicator : public Communicator{
 			std::swap(first.io_context_ref, second.io_context_ref);
 		}
 
-		void Send(std::string message) override;
+		void Send(std::string message, bool async=true) override;
 		void Reply(std::string message) override;
 
 		void Receive(bool async=true) override;

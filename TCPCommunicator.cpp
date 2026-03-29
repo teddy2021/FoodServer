@@ -7,12 +7,14 @@
 #include <boost/system/detail/error_code.hpp>
 #include <catch2/catch_tostring.hpp>
 #include <chrono>
+#include <cstddef>
 #include <memory>
 #include <stdexcept>
 #include <string>
 
 #include <boost/make_shared.hpp>
 #include <boost/bind/bind.hpp>
+#include <sys/socket.h>
 #include <thread>
 
 #include "TCPCommunicator.hpp"
@@ -76,6 +78,47 @@ void TCPCommunicator::StoreMessage(const boost::system::error_code &err,
 			onError(ex);
 		}
 		throw ex;
+	}
+}
+
+
+void TCPCommunicator::HandleAccept(const boost::system::error_code &err, 
+		std::size_t transferred){
+	if(!err){
+		remote_end = socket->remote_endpoint();
+		connected = true;
+		updateLastActivity();
+		connStatus.consecutiveFailures = 0;
+		Logger::GetInstance().log("[TCPCommunicator::HandleAccept] Accepted connection from " + remote_address() + ":" + std::to_string(remote_port()), debug_level::INFO);
+		return;
+	}
+
+	connected = false;
+	connStatus.consecutiveFailures++;
+
+	auto categorized = categorizeAcceptError(err);
+	AcceptError acceptErr;
+	switch(categorized){
+		case AcceptErrorType::Transient:
+			acceptErr = AcceptError::Transient;
+			break;
+		case AcceptErrorType::Resource:
+			acceptErr = AcceptError::Resource;
+			break;
+		case AcceptErrorType::Fatal:
+		default:
+			acceptErr = AcceptError::Fatal;
+			break;
+	}
+
+	Logger::GetInstance().log("[TCPCommunicator::HandleAccept] Accept failed: " + err.message(), debug_level::ERROR);
+
+	AcceptException ex(acceptErr, "[TCPCommunicator::HandleAccept]", "Accept failed: " + err.message());
+	if(onAcceptError){
+		onAcceptError(ex);
+	}
+	if(onError){
+		onError(ex);
 	}
 }
 
@@ -155,7 +198,7 @@ TCPCommunicator::~TCPCommunicator(){
 
 
 
-void TCPCommunicator::Send(string message){
+void TCPCommunicator::Send(string message, bool async){
 	Logger::GetInstance().log("[TCPCommunicator::Send] sending message", debug_level::INFO);
 	
 	auto s_state = validateSocketState();
@@ -174,14 +217,18 @@ void TCPCommunicator::Send(string message){
 	
 	sendStartTime = std::chrono::steady_clock::now();
 	auto send_buffer = boost::make_shared<std::string>(message);
-	boost::asio::async_write(*socket, buffer(*send_buffer),
-		boost::bind(&TCPCommunicator::HandleSend,
-			this,
-			send_buffer,
-			boost::asio::placeholders::error, 
-			boost::asio::placeholders::bytes_transferred));
+	if(async){ 
+		boost::asio::async_write(*socket, buffer(*send_buffer),
+				boost::bind(&TCPCommunicator::HandleSend,
+					this,
+					send_buffer,
+					boost::asio::placeholders::error, 
+					boost::asio::placeholders::bytes_transferred));
+	}
+	else{
+		socket->send(buffer(*send_buffer));
+	}
 }
-
 
 void TCPCommunicator::Reply(string message){
 	Logger::GetInstance().log("[TCPCommunicator::Reply] replying", debug_level::INFO);
@@ -214,12 +261,12 @@ void TCPCommunicator::Reply(string message){
 
 
 
-void TCPCommunicator::Accept(){
+void TCPCommunicator::Accept(bool async){
 	Logger::GetInstance().log("[TCPCommunicator::Accept] accepting", debug_level::INFO);
-	Accept(acc_con);
+	Accept(acc_con, async);
 }
 
-void TCPCommunicator::Accept(const AcceptConfig& config){
+void TCPCommunicator::Accept(const AcceptConfig& config, bool async){
 	Logger::GetInstance().log("[TCPCommunicator::Accept] accepting with config", debug_level::INFO);
 	boost::system::error_code err;
 	validateSocketState();
@@ -248,36 +295,64 @@ void TCPCommunicator::Accept(const AcceptConfig& config){
 	}
 	socket = std::make_unique<boost::asio::ip::tcp::socket>(*io_context_ref);
 	// Accept the connection
-	while(attempts <= config.maxRetries){
-		acceptor->accept(*socket, remote_end, err);
-		if(!err){
-			connected = true;
-			return;
-		}
-
-		auto errorType = categorizeAcceptError(err);
-
-		switch(errorType){
-			case AcceptErrorType::Fatal:
-				throw std::runtime_error("[TCPCommunicator::Accept]: Failed to connect.\n\tFatal error: " + err.message());
-				break;
-			default:
-				attempts += 1;
-				if(attempts > config.maxRetries){
-					throw std::runtime_error("[TCPCommunicator::Accept]: Failed to connect. \n\tAttempt limit reached. Final error: " + err.message());
-					break;
-				}
-				else{
-					std::this_thread::sleep_for(delay);
-				}
-				if(config.exponentialBackoff){
-					delay = std::chrono::milliseconds(
-						static_cast<long>(delay.count() * config.backoffMultiplier)
-					);
-				}
-				socket = std::make_unique<tcp::socket>(*io_context_ref);
-				break;
+	if(async){
+		acceptor->async_accept(*socket, remote_end,
+			[this](const boost::system::error_code& err){
+				HandleAccept(err, 0);
+			});
+		return;
+	}
+	else{ 
+		while(attempts < config.maxRetries){
+			acceptor->accept(*socket, remote_end, err);
+			if(!err){
+				connected = true;
+				Logger::GetInstance().log("[TCPCommunicator::Accept] Accepted connection from " + remote_address() + ":" + std::to_string(remote_port()), debug_level::INFO);
+				return;
 			}
+
+			Logger::GetInstance().log("[TCPCommunicator::Accept] Accept attempt " + std::to_string(attempts + 1) + " failed: " + err.message(), debug_level::WARN);
+
+			auto errorType = categorizeAcceptError(err);
+
+			switch(errorType){
+				case AcceptErrorType::Fatal:
+					{
+						AcceptException ex(AcceptError::Fatal, "[TCPCommunicator::Accept]", "Fatal accept error: " + err.message());
+						if(onAcceptError){
+							onAcceptError(ex);
+						}
+						if(onError){
+							onError(ex);
+						}
+						throw std::runtime_error("[TCPCommunicator::Accept]: Failed to accept.\n\tFatal error: " + err.message());
+					}
+					break;
+				default:
+					attempts++;
+					if(attempts >= config.maxRetries){
+						AcceptException ex(AcceptError::Transient, "[TCPCommunicator::Accept]", "Accept retry limit reached: " + err.message());
+						if(onAcceptError){
+							onAcceptError(ex);
+						}
+						if(onError){
+							onError(ex);
+						}
+						throw std::runtime_error("[TCPCommunicator::Accept]: Failed to accept. \n\tAttempt limit reached. Final error: " + err.message());
+					}
+					else{
+						Logger::GetInstance().log("[TCPCommunicator::Accept] Retrying in " + std::to_string(delay.count()) + "ms", debug_level::INFO);
+						std::this_thread::sleep_for(delay);
+					}
+					if(config.exponentialBackoff){
+						delay = std::chrono::milliseconds(
+							static_cast<long>(delay.count() * config.backoffMultiplier)
+						);
+					}
+					socket = std::make_unique<tcp::socket>(*io_context_ref);
+					break;
+			}
+		}
 	}
 }
 
@@ -299,16 +374,19 @@ AcceptErrorType TCPCommunicator::categorizeAcceptError(const boost::system::erro
 	}
 }
 
-
-
 void TCPCommunicator::ResizeBuffer(unsigned int size){
 	if(recv_buffer->size() > size){
 		recv_buffer->resize(size);
 	}
+	recv_buffer->clear();
 }
 
 void TCPCommunicator::ResetBuffer(){
-	recv_buffer->assign(10, '\0');
+	recv_buffer->clear();
+	recv_buffer->resize(msgSize);
+	for(int i = 0; i < msgSize; i += 1){
+		recv_buffer->at(i) = ' ';
+	}
 }
 
 
@@ -345,7 +423,7 @@ void TCPCommunicator::Receive(bool async){
 		while((transferred = socket->read_some(
 			buffer(*recv_buffer), 
 			err)) == 0){
-			std::this_thread::sleep_for(std::chrono::milliseconds(10));
+			std::this_thread::sleep_for(std::chrono::milliseconds(100));
 		}
 	}
 	
@@ -434,12 +512,14 @@ void TCPCommunicator::Connect(boost::asio::io_context & context, string address)
 	
 	boost::asio::connect(*socket, res, err);
 	
-	if(err){
+	Logger::GetInstance().log("[TCPCommunicator::Connect] after connect: err=" + std::to_string(err.value()) + " msg=" + err.message(), debug_level::INFO);
+	
+	if(err && err.value() != 0){
 		connected = false;
-		Logger::GetInstance().log("[TCPCommunicator::Connect] Error: " + err.message(), debug_level::ERROR);
+		Logger::GetInstance().log("[TCPCommunicator::Connect] Error: " + err.message() + " value=" + std::to_string(err.value()), debug_level::ERROR);
 		socket->close(err);
 		
-		ConnectionException ex(SocketStateError::NetworkError, "[TCPCommunicator::Connect]", "Failed to connect: " + err.message());
+		ConnectionException ex(SocketStateError::NetworkError, "[TCPCommunicator::Connect]", "Failed to connect: " + err.message() + " value=" + std::to_string(err.value()));
 		if(onError){
 			onError(ex);
 		}
@@ -457,7 +537,7 @@ void TCPCommunicator::Connect(boost::asio::io_context & context, string address)
 
 
 void TCPCommunicator::Connect(boost::asio::io_context &context, std::string address, unsigned int port){
-	Logger::GetInstance().log("[TCPCommunicator::Connect] connecting to: " + address + ":" + std::to_string(port), debug_level::INFO);
+	Logger::GetInstance().log("[TCPCommunicator::Connect] connecting to: " + address + ":" + std::to_string(port) + " (with port)", debug_level::INFO);
 	
 	auto s_state = validateSocketState();
 	if(s_state == SocketStateError::NullSocket){
@@ -472,18 +552,26 @@ void TCPCommunicator::Connect(boost::asio::io_context &context, std::string addr
 		throw ConnectionException("[TCPCommunicator::Connect]", "Failed to resolve: " + address + ":" + std::to_string(port) + " - " + err.message());
 	}
 	
-	if(socket->is_open()){
+	if(!socket->is_open()){
+		socket->open(boost::asio::ip::tcp::v4(), err);
+		if(err){
+			throw ConnectionException("[TCPCommunicator::Connect]", "Failed to open socket: " + err.message());
+		}
+	}
+	else{
 		socket->close(err);
 	}
 	
 	boost::asio::connect(*socket, res, err);
 	
-	if(err){
+	Logger::GetInstance().log("[TCPCommunicator::Connect] after connect: err=" + std::to_string(err.value()) + " msg=" + err.message(), debug_level::INFO);
+	
+	if(err && err.value() != 0){
 		connected = false;
-		Logger::GetInstance().log("[TCPCommunicator::Connect] Error: " + err.message(), debug_level::ERROR);
+		Logger::GetInstance().log("[TCPCommunicator::Connect] Error: " + err.message() + " value=" + std::to_string(err.value()), debug_level::ERROR);
 		socket->close(err);
 		
-		ConnectionException ex(SocketStateError::NetworkError, "[TCPCommunicator::Connect]", "Failed to connect: " + err.message());
+		ConnectionException ex(SocketStateError::NetworkError, "[TCPCommunicator::Connect]", "Failed to connect: " + err.message() + " value=" + std::to_string(err.value()));
 		if(onError){
 			onError(ex);
 		}

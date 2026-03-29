@@ -1,11 +1,12 @@
 
-#include <algorithm>
+#include "Enums.hpp"
+#include "NetCommunicator.hpp"
 #include <boost/asio.hpp>
-#include <climits>
-#include <cmath>
+#include <boost/asio/io_context.hpp>
 #include <exception>
 #include <string>
 #include <stdexcept>
+#include <thread>
 #include <utility>
 
 using std::string;
@@ -14,6 +15,12 @@ using std::string;
 #include "UDPCommunicator.hpp"
 #include "TCPCommunicator.hpp"
 #include "Logger.hpp"
+
+
+std::shared_ptr<boost::asio::io_context> NetMessenger::GetContext(){
+	return context;
+}
+
 
 NetMessenger::NetMessenger(std::shared_ptr<boost::asio::io_context> io_context, protocol_type type):context(io_context), inbox(), outbox(){
 	Logger::GetInstance().log("[NetMessenger::NetMessenger] shared io_context with protocol", debug_level::INFO);
@@ -124,11 +131,18 @@ NetMessenger::~NetMessenger(){
 	comms = nullptr;
 }
 
-void NetMessenger::Receive(){
+void NetMessenger::Accept(bool async){
+	Logger::GetInstance().log("[NetMessenger::Accept] accepting", debug_level::DEBUG);
+	if(comms->GetProtocol() == tcp){
+		comms->Accept(async);
+	}
+}
+
+void NetMessenger::Receive(bool async){
 	Logger::GetInstance().log("[NetMessenger::Receive] receiving message", debug_level::DEBUG);
 	int buffer = inbox.GetFreeBuffer();
 	try{
-		comms->Receive();
+		comms->Receive(async);
 	}
 	catch(std::runtime_error e){
 		context->stop();
@@ -156,20 +170,24 @@ void NetMessenger::Receive(){
 			Logger::GetInstance().log("[NetMessenger::Receive 1.3] a size of '" + m_size + "' is way too big.", debug_level::ERROR);
 			throw std::runtime_error("[NetMessenger::Receive 1.3] a size of '" + m_size + "' is way too big.");
 		}
+
+
 		if(size < 0 || size > comms->maxSize()){
 			Logger::GetInstance().log("[NetMessenger::Receive 1.4] packet received larger than allowed.", debug_level::ERROR);
 			throw std::runtime_error("[NetMessenger::Receive 1.4] packet received larger than allowed.");
 		}
 		comms->ResizeBuffer(size);
 		try{
-			comms->Receive();
+			comms->Receive(async);
 		}
 catch(std::runtime_error e){
 			context->stop();
 			throw std::runtime_error("[NetMessenger::Receive 2] an error ocurred when reading from the message\n\t" + string(e.what()));
 		}
 	}
-	inbox.StoreMessage(buffer, comms->GetMessage());
+	string msg = comms->GetMessage();
+	Logger::GetInstance().log("[NetMessenger::Receive] received '" + msg + "'", debug_level::DEBUG);
+	inbox.StoreMessage(buffer, msg);
 	comms->ResetBuffer();
 }
 
@@ -186,7 +204,7 @@ void NetMessenger::Connect(boost::asio::io_context& ctx, std::string address, un
 	comms->Connect(ctx, address, port);
 }
 
-void NetMessenger::Send(string message){
+void NetMessenger::Send(string message, bool async){
 	Logger::GetInstance().log("[NetMessenger::Send] sending message", debug_level::INFO);
 	if(comms->GetProtocol() == udp){  
 		int idx = outbox.GetFreeBuffer(); 
@@ -194,13 +212,12 @@ void NetMessenger::Send(string message){
 		toGoOut += 1;
 	}
 	int idx = outbox.GetFreeBuffer();
-
 	outbox.StoreMessage(idx, message);
 	toGoOut += 1;
-	SendNext();
+	SendNext(async);
 }
 
-void NetMessenger::SendTo(string message, Recipient recipient){
+void NetMessenger::SendTo(string message, Recipient recipient, bool async){
 	Logger::GetInstance().log("[NetMessenger::SendTo] sending to recipient", debug_level::INFO);
 	string cur_addr = "";
 	try{
@@ -217,23 +234,22 @@ void NetMessenger::SendTo(string message, Recipient recipient){
 		Logger::GetInstance().log("[NetMessenger::SendTo] exception getting remote port from socket.", debug_level::WARN);
 	}
 	comms->Connect(*context, recipient->address, recipient->port);
-	Send(message);
+	Send(message, async);
 }
 
-void NetMessenger::SendNext(){
+void NetMessenger::SendNext(bool async){
 	Logger::GetInstance().log("[NetMessenger::SendNext] sending next message", debug_level::DEBUG);
 	while(nullptr == GetRemoteEndpoint()){
-		sleep(1);
+		std::this_thread::sleep_for(std::chrono::milliseconds(10));
 	}
 	while(toGoOut > 0){
 		string message;
 		try{
 			message = outbox.Pop();
 			Logger::GetInstance().log("[NetMessenger::SendNext] sending '" + message + "'", debug_level::DEBUG);
-			comms->Send(message);
+			comms->Send(message, async);
 			toGoOut -= 1;
 			Logger::GetInstance().log("[NetMessenger::SendNext] sent '" + message + "'", debug_level::DEBUG);
-			return; 
 		}
 		catch(std::runtime_error e){
 			outbox.StoreMessage(outbox.GetFreeBuffer(), message);
@@ -256,6 +272,7 @@ Recipient NetMessenger::GetRemoteEndpoint(){
 	Recipient r = std::make_shared<recipient>(rr);
 	r->address = addr;
 	r->port = p;
+	Logger::GetInstance().log("[NetMessenger::GetRemoteEndpoint] got '" + addr + ":" + std::to_string(p) + "'", debug_level::DEBUG);
 	return r;
 }
 
@@ -265,3 +282,6 @@ void NetMessenger::ReplyTo(string message, Recipient recipient){
 	comms->Reply(message);
 }
 
+protocol_type NetMessenger::GetProtocol(){
+	return comms->GetProtocol();
+}
