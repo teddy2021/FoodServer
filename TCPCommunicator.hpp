@@ -11,6 +11,8 @@
 class TCPCommunicator : public Communicator, std::enable_shared_from_this<TCPCommunicator>{
 
 	private:
+		static int nxtID;
+		const int id;
 		const AcceptConfig acc_con;
 		std::unique_ptr<boost::asio::ip::tcp::socket> socket;
 		std::unique_ptr<boost::asio::ip::tcp::acceptor> acceptor;
@@ -55,8 +57,9 @@ class TCPCommunicator : public Communicator, std::enable_shared_from_this<TCPCom
 		
 		TCPCommunicator() = delete;
 
-		TCPCommunicator(std::shared_ptr<boost::asio::io_context> con):
-			socket(std::make_unique<boost::asio::ip::tcp::socket>(*con)), 
+	TCPCommunicator(std::shared_ptr<boost::asio::io_context> con):
+		id(nxtID++),
+		socket(std::make_unique<boost::asio::ip::tcp::socket>(*con)),
 			remote_end(boost::asio::ip::tcp::v4(), 0xBEEF),
 			acceptor(nullptr),
 			io_context_ref(con),
@@ -69,8 +72,9 @@ class TCPCommunicator : public Communicator, std::enable_shared_from_this<TCPCom
 
 
 
-		TCPCommunicator(std::shared_ptr<boost::asio::io_context> con, unsigned short port):
-			socket(std::make_unique<boost::asio::ip::tcp::socket>(*con)),
+	TCPCommunicator(std::shared_ptr<boost::asio::io_context> con, unsigned short port):
+		id(nxtID++),
+		socket(std::make_unique<boost::asio::ip::tcp::socket>(*con)),
 			remote_end(boost::asio::ip::tcp::v4(), port),
 			acceptor(std::make_unique<boost::asio::ip::tcp::acceptor>(*con, 
 				boost::asio::ip::tcp::endpoint(boost::asio::ip::tcp::v4(), port))),
@@ -83,7 +87,8 @@ class TCPCommunicator : public Communicator, std::enable_shared_from_this<TCPCom
 			}
 
 	TCPCommunicator(std::shared_ptr<boost::asio::io_context> con, std::string address,  unsigned short port):
-			socket(std::make_unique<boost::asio::ip::tcp::socket>(*con)),
+		id(nxtID++),
+		socket(std::make_unique<boost::asio::ip::tcp::socket>(*con)),
 			remote_end(boost::asio::ip::tcp::v4(), port),
 			acceptor(std::make_unique<boost::asio::ip::tcp::acceptor>(*con,
 				boost::asio::ip::tcp::endpoint(boost::asio::ip::make_address(address), port))),
@@ -95,7 +100,7 @@ class TCPCommunicator : public Communicator, std::enable_shared_from_this<TCPCom
 				InitializeTimers(*con);
 			}
 
-		TCPCommunicator(TCPCommunicator &other):socket(std::move( other.socket )), acceptor(std::move(other.acceptor)), remote_end(other.remote_end){};
+		TCPCommunicator(TCPCommunicator &other): id(other.id), socket(std::move( other.socket )), acceptor(std::move(other.acceptor)), remote_end(other.remote_end){};
 
 
 		TCPCommunicator & operator=(TCPCommunicator & other){
@@ -121,7 +126,7 @@ class TCPCommunicator : public Communicator, std::enable_shared_from_this<TCPCom
 		}
 
 		void Send(std::string message, bool async=true) override;
-		void Reply(std::string message) override;
+		void Reply(std::string message, bool async=true) override;
 		
 		void Receive(bool async=true) override;
 				std::string remote_address() override;

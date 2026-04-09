@@ -1,0 +1,12 @@
+
+body{
+	background-color: #7F0B00;
+	font-family: "Copperplate", fantasy;
+}
+
+h1,h2,h3,p{
+	color: #00757F;
+	-webkit-text-stroke: 1px black;
+}
+
+

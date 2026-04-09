@@ -156,7 +156,7 @@ class Communicator{
 		virtual void Connect(boost::asio::io_context & context, std::string address, unsigned int port){};
 
 		virtual protocol_type GetProtocol(){return udp;};
-		virtual void Reply(std::string message){};
+		virtual void Reply(std::string message, bool async=false){};
 
 		virtual unsigned int maxSize(){return 0;};
 

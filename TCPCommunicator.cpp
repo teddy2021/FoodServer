@@ -20,6 +20,8 @@
 #include "TCPCommunicator.hpp"
 #include "Logger.hpp"
 
+int TCPCommunicator::nxtID = 1;
+
 using std::string;
 using boost::shared_ptr;
 using boost::asio::buffer;
@@ -32,19 +34,19 @@ void TCPCommunicator::HandleSend(boost::shared_ptr<std::string> message,
 	if(err){
 		connected = false;
 		connStatus.consecutiveFailures++;
-		Logger::GetInstance().log("[TCPCommunicator::HandleSend] Failed: " + err.message(), debug_level::ERROR);
+		Logger::GetInstance().log("[TCPCommunicator<" + std::to_string(id) + ">::HandleSend] Failed: " + err.message(), debug_level::ERROR);
 		
 		auto categorized = categorizeSocketError(err);
 		SendException ex(
 			(categorized == SocketStateError::RemoteClosed) ? SendError::NetworkError : SendError::NetworkError,
-			"[TCPCommunicator::HandleSend]", 
+			"[TCPCommunicator<" + std::to_string(id) + ">::HandleSend]", 
 			"Failed to send: " + err.message()
 		);
 		
 		if(onError){
 			onError(ex);
 		}
-		Logger::GetInstance().log("[TCPCommunicator::HandleSend(" + *message + ",__, " + std::to_string(transferred) + ")] Failed to send: " + err.message(), debug_level::ERROR);
+		Logger::GetInstance().log("[TCPCommunicator<" + std::to_string(id) + ">::HandleSend(" + *message + ",__, " + std::to_string(transferred) + ")] Failed to send: " + err.message(), debug_level::ERROR);
 	}
 	else{
 		connected = true;
@@ -70,7 +72,7 @@ void TCPCommunicator::StoreMessage(const boost::system::error_code &err,
 		auto categorized = categorizeSocketError(err);
 		ReceiveException ex(
 			(categorized == SocketStateError::RemoteClosed) ? ReceiveError::ConnectionClosed : ReceiveError::NetworkError,
-			"[TCPCommunicator::StoreMessage]", 
+			"[TCPCommunicator<" + std::to_string(id) + ">::StoreMessage]", 
 			"Error receiving: " + err.message()
 		);
 		
@@ -89,7 +91,7 @@ void TCPCommunicator::HandleAccept(const boost::system::error_code &err,
 		connected = true;
 		updateLastActivity();
 		connStatus.consecutiveFailures = 0;
-		Logger::GetInstance().log("[TCPCommunicator::HandleAccept] Accepted connection from " + remote_address() + ":" + std::to_string(remote_port()), debug_level::INFO);
+		Logger::GetInstance().log("[TCPCommunicator<" + std::to_string(id) + ">::HandleAccept] Accepted connection from " + remote_address() + ":" + std::to_string(remote_port()), debug_level::INFO);
 		return;
 	}
 
@@ -111,9 +113,9 @@ void TCPCommunicator::HandleAccept(const boost::system::error_code &err,
 			break;
 	}
 
-	Logger::GetInstance().log("[TCPCommunicator::HandleAccept] Accept failed: " + err.message(), debug_level::ERROR);
+	Logger::GetInstance().log("[TCPCommunicator<" + std::to_string(id) + ">::HandleAccept] Accept failed: " + err.message(), debug_level::ERROR);
 
-	AcceptException ex(acceptErr, "[TCPCommunicator::HandleAccept]", "Accept failed: " + err.message());
+	AcceptException ex(acceptErr, "[TCPCommunicator<" + std::to_string(id) + ">::HandleAccept]", "Accept failed: " + err.message());
 	if(onAcceptError){
 		onAcceptError(ex);
 	}
@@ -163,7 +165,7 @@ SocketStateError TCPCommunicator::categorizeSocketError(const boost::system::err
 }
 
 TCPCommunicator::~TCPCommunicator(){
-	Logger::GetInstance().log("[TCPCommunicator::~TCPCommunicator] destroyed", debug_level::DEBUG);
+	Logger::GetInstance().log("[TCPCommunicator<" + std::to_string(id) + ">::~TCPCommunicator] destroyed", debug_level::DEBUG);
 	CancelAllTimers();
 	boost::system::error_code err;
 	
@@ -199,19 +201,19 @@ TCPCommunicator::~TCPCommunicator(){
 
 
 void TCPCommunicator::Send(string message, bool async){
-	Logger::GetInstance().log("[TCPCommunicator::Send] sending message", debug_level::INFO);
+	Logger::GetInstance().log("[TCPCommunicator<" + std::to_string(id) + ">::Send] sending message", debug_level::INFO);
 	
 	auto s_state = validateSocketState();
 	if(s_state != SocketStateError::None){
-		throw ConnectionException(s_state, "[TCPCommunicator::Send]", "Invalid socket state");
+		throw ConnectionException(s_state, "[TCPCommunicator<" + std::to_string(id) + ">::Send]", "Invalid socket state");
 	}
 	
 	if(!connected){
-		throw ConnectionException(SocketStateError::NotConnected, "[TCPCommunicator::Send]", "Not connected to a peer");
+		throw ConnectionException(SocketStateError::NotConnected, "[TCPCommunicator<" + std::to_string(id) + ">::Send]", "Not connected to a peer");
 	}
 
 	if(!ValidateMessageSize(message.size())){
-		throw SendException(SendError::BufferOverflow, "[TCPCommunicator::Send]", 
+		throw SendException(SendError::BufferOverflow, "[TCPCommunicator<" + std::to_string(id) + ">::Send]", 
 			"Message size " + std::to_string(message.size()) + " exceeds maximum " + std::to_string(msgSize));
 	}
 	
@@ -230,62 +232,66 @@ void TCPCommunicator::Send(string message, bool async){
 	}
 }
 
-void TCPCommunicator::Reply(string message){
-	Logger::GetInstance().log("[TCPCommunicator::Reply] replying", debug_level::INFO);
+void TCPCommunicator::Reply(string message, bool async){
+	Logger::GetInstance().log("[TCPCommunicator<" + std::to_string(id) + ">::Reply] replying", debug_level::INFO);
 	
 	auto s_state = validateSocketState();
 	if(s_state != SocketStateError::None){
-		throw ConnectionException(s_state, "[TCPCommunicator::Reply]", "Invalid socket state");
+		throw ConnectionException(s_state, "[TCPCommunicator<" + std::to_string(id) + ">::Reply]", "Invalid socket state");
 	}
 	
 	if(!connected){
-		throw ConnectionException(SocketStateError::NotConnected, "[TCPCommunicator::Reply]", "Not connected to a peer");
+		throw ConnectionException(SocketStateError::NotConnected, "[TCPCommunicator<" + std::to_string(id) + ">::Reply]", "Not connected to a peer");
 	}
 
 	if(!ValidateMessageSize(message.size())){
-		throw SendException(SendError::BufferOverflow, "[TCPCommunicator::Reply]", 
+		throw SendException(SendError::BufferOverflow, "[TCPCommunicator<" + std::to_string(id) + ">::Reply]", 
 			"Message size " + std::to_string(message.size()) + " exceeds maximum " + std::to_string(msgSize));
 	}
 	
 	sendStartTime = std::chrono::steady_clock::now();
 	auto send_buffer = boost::make_shared<std::string>(message);
-	boost::asio::async_write(*socket, buffer(*send_buffer),
-		boost::bind(&TCPCommunicator::HandleSend,
-			this,
-			send_buffer,
-			boost::asio::placeholders::error, 
-			boost::asio::placeholders::bytes_transferred));
+	if(async){
+		boost::asio::async_write(*socket, buffer(*send_buffer),
+				boost::bind(&TCPCommunicator::HandleSend,
+					this,
+					send_buffer,
+					boost::asio::placeholders::error, 
+					boost::asio::placeholders::bytes_transferred));
+	}
+	else{
+		socket->send(buffer(*send_buffer));
+	}
 }
-
 
 
 
 
 void TCPCommunicator::Accept(bool async){
-	Logger::GetInstance().log("[TCPCommunicator::Accept] accepting", debug_level::INFO);
+	Logger::GetInstance().log("[TCPCommunicator<" + std::to_string(id) + ">::Accept] accepting", debug_level::INFO);
 	Accept(acc_con, async);
 }
 
 void TCPCommunicator::Accept(const AcceptConfig& config, bool async){
-	Logger::GetInstance().log("[TCPCommunicator::Accept] accepting with config", debug_level::INFO);
+	Logger::GetInstance().log("[TCPCommunicator<" + std::to_string(id) + ">::Accept] accepting with config", debug_level::INFO);
 	boost::system::error_code err;
 	validateSocketState();
 	int attempts = 0;
 	auto delay = config.initialDelay;
 	// Only accept if we're in server mode and have an acceptor
 	if(!is_server_mode || !acceptor){
-		throw std::runtime_error("[TCPCommunicator::Accept] Not configured as server");
+		throw std::runtime_error("[TCPCommunicator<" + std::to_string(id) + ">::Accept] Not configured as server");
 	}
 	
 	// Ensure acceptor is ready
 	if(!acceptor->is_open()){
 		acceptor->open(tcp::v4(), err);
 		if(err){
-			throw std::runtime_error("[TCPCommunicator::Accept] Failed to open acceptor:\n\t" + err.message());
+			throw std::runtime_error("[TCPCommunicator<" + std::to_string(id) + ">::Accept] Failed to open acceptor:\n\t" + err.message());
 		}
 		acceptor->listen();
 		if(err){
-			throw std::runtime_error("[TCPCommunicator::Accept] Failed to start listening:\n\t" + err.message());
+			throw std::runtime_error("[TCPCommunicator<" + std::to_string(id) + ">::Accept] Failed to start listening:\n\t" + err.message());
 		}
 	}
 	
@@ -307,41 +313,41 @@ void TCPCommunicator::Accept(const AcceptConfig& config, bool async){
 			acceptor->accept(*socket, remote_end, err);
 			if(!err){
 				connected = true;
-				Logger::GetInstance().log("[TCPCommunicator::Accept] Accepted connection from " + remote_address() + ":" + std::to_string(remote_port()), debug_level::INFO);
+				Logger::GetInstance().log("[TCPCommunicator<" + std::to_string(id) + ">::Accept] Accepted connection from " + remote_address() + ":" + std::to_string(remote_port()), debug_level::INFO);
 				return;
 			}
 
-			Logger::GetInstance().log("[TCPCommunicator::Accept] Accept attempt " + std::to_string(attempts + 1) + " failed: " + err.message(), debug_level::WARN);
+			Logger::GetInstance().log("[TCPCommunicator<" + std::to_string(id) + ">::Accept] Accept attempt " + std::to_string(attempts + 1) + " failed: " + err.message(), debug_level::WARN);
 
 			auto errorType = categorizeAcceptError(err);
 
 			switch(errorType){
 				case AcceptErrorType::Fatal:
 					{
-						AcceptException ex(AcceptError::Fatal, "[TCPCommunicator::Accept]", "Fatal accept error: " + err.message());
+						AcceptException ex(AcceptError::Fatal, "[TCPCommunicator<" + std::to_string(id) + ">::Accept]", "Fatal accept error: " + err.message());
 						if(onAcceptError){
 							onAcceptError(ex);
 						}
 						if(onError){
 							onError(ex);
 						}
-						throw std::runtime_error("[TCPCommunicator::Accept]: Failed to accept.\n\tFatal error: " + err.message());
+						throw std::runtime_error("[TCPCommunicator<" + std::to_string(id) + ">::Accept]: Failed to accept.\n\tFatal error: " + err.message());
 					}
 					break;
 				default:
 					attempts++;
 					if(attempts >= config.maxRetries){
-						AcceptException ex(AcceptError::Transient, "[TCPCommunicator::Accept]", "Accept retry limit reached: " + err.message());
+						AcceptException ex(AcceptError::Transient, "[TCPCommunicator<" + std::to_string(id) + ">::Accept]", "Accept retry limit reached: " + err.message());
 						if(onAcceptError){
 							onAcceptError(ex);
 						}
 						if(onError){
 							onError(ex);
 						}
-						throw std::runtime_error("[TCPCommunicator::Accept]: Failed to accept. \n\tAttempt limit reached. Final error: " + err.message());
+						throw std::runtime_error("[TCPCommunicator<" + std::to_string(id) + ">::Accept]: Failed to accept. \n\tAttempt limit reached. Final error: " + err.message());
 					}
 					else{
-						Logger::GetInstance().log("[TCPCommunicator::Accept] Retrying in " + std::to_string(delay.count()) + "ms", debug_level::INFO);
+						Logger::GetInstance().log("[TCPCommunicator<" + std::to_string(id) + ">::Accept] Retrying in " + std::to_string(delay.count()) + "ms", debug_level::INFO);
 						std::this_thread::sleep_for(delay);
 					}
 					if(config.exponentialBackoff){
@@ -394,11 +400,11 @@ void TCPCommunicator::ResetBuffer(){
 
 
 void TCPCommunicator::Receive(bool async){
-	Logger::GetInstance().log("[TCPCommunicator::Receive] receiving", debug_level::DEBUG);
+	Logger::GetInstance().log("[TCPCommunicator<" + std::to_string(id) + ">::Receive] receiving", debug_level::DEBUG);
 	
 	auto s_state = validateSocketState();
 	if(s_state == SocketStateError::NullSocket || s_state == SocketStateError::NotOpen){
-		throw ConnectionException(s_state, "[TCPCommunicator::Receive]", "Socket not available");
+		throw ConnectionException(s_state, "[TCPCommunicator<" + std::to_string(id) + ">::Receive]", "Socket not available");
 	}
 	
 	if(!connected){
@@ -406,7 +412,7 @@ void TCPCommunicator::Receive(bool async){
 	}
 	
 	if(!socket->is_open()){
-		throw ConnectionException(SocketStateError::NotOpen, "[TCPCommunicator::Receive]", "Socket is not open");
+		throw ConnectionException(SocketStateError::NotOpen, "[TCPCommunicator<" + std::to_string(id) + ">::Receive]", "Socket is not open");
 	}
 	
 	recv_buffer->resize(1024);
@@ -428,11 +434,11 @@ void TCPCommunicator::Receive(bool async){
 	}
 	
 	if(err == boost::asio::error::eof){
-		Logger::GetInstance().log("[TCPCommunicator::Receive] eof error encoutered.", debug_level::ERROR);
+		Logger::GetInstance().log("[TCPCommunicator<" + std::to_string(id) + ">::Receive] eof error encoutered.", debug_level::ERROR);
 		connected = false;
 		connStatus.consecutiveFailures++;
 		
-		ReceiveException ex(ReceiveError::ConnectionClosed, "[TCPCommunicator::Receive]", "Remote closed connection");
+		ReceiveException ex(ReceiveError::ConnectionClosed, "[TCPCommunicator<" + std::to_string(id) + ">::Receive]", "Remote closed connection");
 		if(onDisconnected){
 			onDisconnected();
 		}
@@ -445,7 +451,7 @@ void TCPCommunicator::Receive(bool async){
 		connected = false;
 		connStatus.consecutiveFailures++;
 		
-		ReceiveException ex(ReceiveError::NetworkError, "[TCPCommunicator::Receive]", "Error: " + err.message());
+		ReceiveException ex(ReceiveError::NetworkError, "[TCPCommunicator<" + std::to_string(id) + ">::Receive]", "Error: " + err.message());
 		if(onError){
 			onError(ex);
 		}
@@ -467,7 +473,7 @@ string TCPCommunicator::GetMessage(){
 string TCPCommunicator::remote_address(){
 	auto state = validateSocketState();
 	if(state != SocketStateError::None){
-		throw ConnectionException(state, "[TCPCommunicator::remote_address]", "Socket not in valid state");
+		throw ConnectionException(state, "[TCPCommunicator<" + std::to_string(id) + ">::remote_address]", "Socket not in valid state");
 	}
 	return socket->remote_endpoint().address().to_string();
 }
@@ -476,7 +482,7 @@ string TCPCommunicator::remote_address(){
 unsigned short TCPCommunicator::remote_port(){
 	auto state = validateSocketState();
 	if(state != SocketStateError::None){
-		throw ConnectionException(state, "[TCPCommunicator::remote_port]", "Socket not in valid state");
+		throw ConnectionException(state, "[TCPCommunicator<" + std::to_string(id) + ">::remote_port]", "Socket not in valid state");
 	}
 	return static_cast<unsigned short>(socket->remote_endpoint().port());
 }
@@ -491,11 +497,11 @@ protocol_type TCPCommunicator::GetProtocol(){
 
 
 void TCPCommunicator::Connect(boost::asio::io_context & context, string address){
-	Logger::GetInstance().log("[TCPCommunicator::Connect] connecting to: " + address, debug_level::INFO);
+	Logger::GetInstance().log("[TCPCommunicator<" + std::to_string(id) + ">::Connect] connecting to: " + address, debug_level::INFO);
 	
 	auto s_state = validateSocketState();
 	if(s_state == SocketStateError::NullSocket){
-		throw ConnectionException(SocketStateError::NullSocket, "[TCPCommunicator::Connect]", "Socket is null");
+		throw ConnectionException(SocketStateError::NullSocket, "[TCPCommunicator<" + std::to_string(id) + ">::Connect]", "Socket is null");
 	}
 	
 	boost::system::error_code err;
@@ -503,7 +509,7 @@ void TCPCommunicator::Connect(boost::asio::io_context & context, string address)
 	tcp::resolver::results_type res = resolver.resolve(address, std::to_string(0xBEEF), err);
 	
 	if(err || res.empty()){
-		throw ConnectionException("[TCPCommunicator::Connect]", "Failed to resolve: " + address + " - " + err.message());
+		throw ConnectionException("[TCPCommunicator<" + std::to_string(id) + ">::Connect]", "Failed to resolve: " + address + " - " + err.message());
 	}
 	
 	if(socket->is_open()){
@@ -512,14 +518,14 @@ void TCPCommunicator::Connect(boost::asio::io_context & context, string address)
 	
 	boost::asio::connect(*socket, res, err);
 	
-	Logger::GetInstance().log("[TCPCommunicator::Connect] after connect: err=" + std::to_string(err.value()) + " msg=" + err.message(), debug_level::INFO);
+	Logger::GetInstance().log("[TCPCommunicator<" + std::to_string(id) + ">::Connect] after connect: err=" + std::to_string(err.value()) + " msg=" + err.message(), debug_level::INFO);
 	
 	if(err && err.value() != 0){
 		connected = false;
-		Logger::GetInstance().log("[TCPCommunicator::Connect] Error: " + err.message() + " value=" + std::to_string(err.value()), debug_level::ERROR);
+		Logger::GetInstance().log("[TCPCommunicator<" + std::to_string(id) + ">::Connect] Error: " + err.message() + " value=" + std::to_string(err.value()), debug_level::ERROR);
 		socket->close(err);
 		
-		ConnectionException ex(SocketStateError::NetworkError, "[TCPCommunicator::Connect]", "Failed to connect: " + err.message() + " value=" + std::to_string(err.value()));
+		ConnectionException ex(SocketStateError::NetworkError, "[TCPCommunicator<" + std::to_string(id) + ">::Connect]", "Failed to connect: " + err.message() + " value=" + std::to_string(err.value()));
 		if(onError){
 			onError(ex);
 		}
@@ -537,11 +543,11 @@ void TCPCommunicator::Connect(boost::asio::io_context & context, string address)
 
 
 void TCPCommunicator::Connect(boost::asio::io_context &context, std::string address, unsigned int port){
-	Logger::GetInstance().log("[TCPCommunicator::Connect] connecting to: " + address + ":" + std::to_string(port) + " (with port)", debug_level::INFO);
+	Logger::GetInstance().log("[TCPCommunicator<" + std::to_string(id) + ">::Connect] connecting to: " + address + ":" + std::to_string(port) + " (with port)", debug_level::INFO);
 	
 	auto s_state = validateSocketState();
 	if(s_state == SocketStateError::NullSocket){
-		throw ConnectionException(SocketStateError::NullSocket, "[TCPCommunicator::Connect]", "Socket is null");
+		throw ConnectionException(SocketStateError::NullSocket, "[TCPCommunicator<" + std::to_string(id) + ">::Connect]", "Socket is null");
 	}
 	
 	boost::system::error_code err;
@@ -549,13 +555,13 @@ void TCPCommunicator::Connect(boost::asio::io_context &context, std::string addr
 	tcp::resolver::results_type res = resolver.resolve(address, std::to_string(port), err);
 	
 	if(err || res.empty()){
-		throw ConnectionException("[TCPCommunicator::Connect]", "Failed to resolve: " + address + ":" + std::to_string(port) + " - " + err.message());
+		throw ConnectionException("[TCPCommunicator<" + std::to_string(id) + ">::Connect]", "Failed to resolve: " + address + ":" + std::to_string(port) + " - " + err.message());
 	}
 	
 	if(!socket->is_open()){
 		socket->open(boost::asio::ip::tcp::v4(), err);
 		if(err){
-			throw ConnectionException("[TCPCommunicator::Connect]", "Failed to open socket: " + err.message());
+			throw ConnectionException("[TCPCommunicator<" + std::to_string(id) + ">::Connect]", "Failed to open socket: " + err.message());
 		}
 	}
 	else{
@@ -564,14 +570,14 @@ void TCPCommunicator::Connect(boost::asio::io_context &context, std::string addr
 	
 	boost::asio::connect(*socket, res, err);
 	
-	Logger::GetInstance().log("[TCPCommunicator::Connect] after connect: err=" + std::to_string(err.value()) + " msg=" + err.message(), debug_level::INFO);
+	Logger::GetInstance().log("[TCPCommunicator<" + std::to_string(id) + ">::Connect] after connect: err=" + std::to_string(err.value()) + " msg=" + err.message(), debug_level::INFO);
 	
 	if(err && err.value() != 0){
 		connected = false;
-		Logger::GetInstance().log("[TCPCommunicator::Connect] Error: " + err.message() + " value=" + std::to_string(err.value()), debug_level::ERROR);
+		Logger::GetInstance().log("[TCPCommunicator<" + std::to_string(id) + ">::Connect] Error: " + err.message() + " value=" + std::to_string(err.value()), debug_level::ERROR);
 		socket->close(err);
 		
-		ConnectionException ex(SocketStateError::NetworkError, "[TCPCommunicator::Connect]", "Failed to connect: " + err.message() + " value=" + std::to_string(err.value()));
+		ConnectionException ex(SocketStateError::NetworkError, "[TCPCommunicator<" + std::to_string(id) + ">::Connect]", "Failed to connect: " + err.message() + " value=" + std::to_string(err.value()));
 		if(onError){
 			onError(ex);
 		}

@@ -7,6 +7,8 @@
 class UDPCommunicator : public Communicator{
 
 	private:
+		static int nxtID;
+		const int id;
 
 		std::unique_ptr<boost::asio::ip::udp::socket> socket;
 		boost::asio::ip::udp::endpoint remote_end;
@@ -40,8 +42,9 @@ class UDPCommunicator : public Communicator{
 		void Connect(boost::asio::io_context & context, std::string address) override;
 		void Connect(boost::asio::io_context & context, std::string address, unsigned int port) override;
 		UDPCommunicator() = delete;
-		UDPCommunicator(std::shared_ptr<boost::asio::io_context> context, unsigned int maxMessage=1024):
-			socket(std::make_unique<boost::asio::ip::udp::socket>(*context, boost::asio::ip::udp::endpoint(boost::asio::ip::udp::v4(), 0xBEEF))),
+	UDPCommunicator(std::shared_ptr<boost::asio::io_context> context, unsigned int maxMessage=1024):
+		id(nxtID++),
+		socket(std::make_unique<boost::asio::ip::udp::socket>(*context, boost::asio::ip::udp::endpoint(boost::asio::ip::udp::v4(), 0xBEEF))),
 			addr("0.0.0.0"),
 			prt(0xBEEF),
 			msgSize(maxMessage),
@@ -52,8 +55,9 @@ class UDPCommunicator : public Communicator{
 				InitializeTimers(*context);
 		};
 
-		UDPCommunicator(std::shared_ptr<boost::asio::io_context> context, unsigned short port, unsigned int maxMessage=1024):
-			addr("0.0.0.0"),
+	UDPCommunicator(std::shared_ptr<boost::asio::io_context> context, unsigned short port, unsigned int maxMessage=1024):
+		id(nxtID++),
+		addr("0.0.0.0"),
 			prt(port),
 			socket(std::make_unique<boost::asio::ip::udp::socket>(*context, boost::asio::ip::udp::endpoint(boost::asio::ip::udp::v4(), port))),
 			msgSize(maxMessage),
@@ -64,8 +68,9 @@ class UDPCommunicator : public Communicator{
 				InitializeTimers(*context);
 		};
 		
-		UDPCommunicator(std::shared_ptr<boost::asio::io_context> context, std::string address, unsigned short port, unsigned int maxMessage=1024):
-			addr(address),
+	UDPCommunicator(std::shared_ptr<boost::asio::io_context> context, std::string address, unsigned short port, unsigned int maxMessage=1024):
+		id(nxtID++),
+		addr(address),
 			prt(port),
 			socket(std::make_unique<boost::asio::ip::udp::socket>(*context, boost::asio::ip::udp::endpoint(boost::asio::ip::make_address(address), port))), 
 			msgSize(maxMessage),
@@ -76,7 +81,7 @@ class UDPCommunicator : public Communicator{
 				InitializeTimers(*context);
 		};
 
-		UDPCommunicator(UDPCommunicator &other): socket(std::move(other.socket)){
+		UDPCommunicator(UDPCommunicator &other): id(other.id), socket(std::move(other.socket)){
 			addr = other.addr;
 			prt = other.prt;
 			recv_buffer = std::move(other.recv_buffer);
@@ -114,7 +119,7 @@ class UDPCommunicator : public Communicator{
 		}
 
 		void Send(std::string message, bool async=true) override;
-		void Reply(std::string message) override;
+		void Reply(std::string message, bool async=true) override;
 
 		void Receive(bool async=true) override;
 

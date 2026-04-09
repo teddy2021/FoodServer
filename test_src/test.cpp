@@ -341,22 +341,22 @@ TEST_CASE("Testing UDPCommunicator", "[UDP]"){
 		std::reverse(msg.begin(), msg.end());
 		REQUIRE_NOTHROW(com2->Reply(msg));
 		com1->Receive();
-		string msg2 = com1->GetMessage();
-		REQUIRE(msg2 == msg);
-		CAPTURE(msg2, msg);
+		string msg1 = com1->GetMessage();
+		REQUIRE(msg1 == msg);
+		CAPTURE(msg1, msg);
 		msg.erase();
-		msg2.erase();
+		msg1.erase();
 
-		msg2 = "asdf";
-		REQUIRE_NOTHROW(com1->Reply(msg2));
+		msg = "asdf";
+		REQUIRE_NOTHROW(com1->Reply(msg));
 		com2->Receive();
-		msg = com2->GetMessage();
-		REQUIRE_THAT(msg, Equals(msg2));
+		string msg2 = com2->GetMessage();
 		CAPTURE(msg, msg2);
+		REQUIRE_THAT(msg, Equals(msg2));
 		msg.erase();
 		msg2.erase();
 
-		string msg1 = "";
+		string msg3 = "";
 		auto com3 = std::make_unique<UDPCommunicator>(con, static_cast<unsigned short>(8083));
 
 		msg = "dvorak";
@@ -366,22 +366,24 @@ TEST_CASE("Testing UDPCommunicator", "[UDP]"){
 		com2->Receive();
 		msg1 = com1->GetMessage();
 		msg2 = com2->GetMessage();
+		CAPTURE(msg, msg1, msg2);
 		REQUIRE_THAT(msg, Equals(msg1));
 		REQUIRE_THAT(msg, !Equals(msg2));
-		CAPTURE(msg, msg1, msg2);
 		msg.erase();
 		msg1.erase();
 		msg2.erase();
 
+		std::this_thread::sleep_for(std::chrono::seconds(5));
+
 		msg = "qwerty";
 		REQUIRE_NOTHROW(com1->Reply(msg));
 		com2->Receive();
-		msg1 = com2->GetMessage();
 		com3->Receive();
-		msg2 = com3->GetMessage();
-		REQUIRE_THAT(msg, Equals(msg1));
-		REQUIRE_THAT(msg, !Equals(msg2));
-		CAPTURE(msg, msg1, msg2);
+		msg2 = com2->GetMessage();
+		msg3 = com3->GetMessage();
+		CAPTURE(msg, msg1, msg2, msg3);
+		REQUIRE_THAT(msg, Equals(msg2));
+		REQUIRE_THAT(msg, !Equals(msg3));
 	}
 
 	SECTION("UDP multiple agents", "[UDP][SEND][RECV][REPLY][MULTI]"){

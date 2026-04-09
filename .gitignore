@@ -1,7 +1,6 @@
 Makefile
 build/
 *.o
-pages/
 *.txt
 *.md
 *.log

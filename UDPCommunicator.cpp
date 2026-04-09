@@ -18,6 +18,9 @@
 #include "CommunicatorExceptions.hpp"
 #include "Enums.hpp"
 #include "Logger.hpp"
+
+int UDPCommunicator::nxtID = 1;
+
 using boost::asio::buffer;
 using std::string;
 using boost::shared_ptr;
@@ -71,7 +74,7 @@ SocketStateError UDPCommunicator::categorizeSocketError(const boost::system::err
 }
 
 UDPCommunicator::~UDPCommunicator(){
-	Logger::GetInstance().log("[UDPCommunicator::~UDPCommunicator] destroyed", debug_level::DEBUG);
+	Logger::GetInstance().log("[UDPCommunicator<" + std::to_string(id) + ">::~UDPCommunicator] destroyed", debug_level::DEBUG);
 	//if(socket->is_open()) {
 	//	auto err = socket->cancel(error);
 	//	if(error && !err){
@@ -94,8 +97,8 @@ UDPCommunicator::~UDPCommunicator(){
 
 string UDPCommunicator::GetMessage(){
 	if(!recv_buffer){
-		Logger::GetInstance().log("[UDPCommunicator::GetMessage]: null message storage pointer", debug_level::ERROR);
-		throw std::runtime_error("[UDPCommunicator::GetMessage]: null message storage pointer");
+		Logger::GetInstance().log("[UDPCommunicator<" + std::to_string(id) + ">::GetMessage]: null message storage pointer", debug_level::ERROR);
+		throw std::runtime_error("[UDPCommunicator<" + std::to_string(id) + ">::GetMessage]: null message storage pointer");
 	}
 	string out(*recv_buffer);
 	out.shrink_to_fit();
@@ -107,10 +110,10 @@ string UDPCommunicator::GetMessage(){
 }
 
 void UDPCommunicator::ResizeBuffer(unsigned int size){
-	Logger::GetInstance().log("[UDPCommunicator::ResizeBuffer] resizing from " + std::to_string(recv_buffer->size()) + " to " + std::to_string(size), debug_level::INFO);
+	Logger::GetInstance().log("[UDPCommunicator<" + std::to_string(id) + ">::ResizeBuffer] resizing from " + std::to_string(recv_buffer->size()) + " to " + std::to_string(size), debug_level::INFO);
 	if(size > msgSize){
-		Logger::GetInstance().log("[UDPCommunicator::ResizeBuffer(" + std::to_string(size) + ")]: Size is greater than max allowable size (" + std::to_string(msgSize) + ").", debug_level::ERROR);
-		throw std::runtime_error("[UDPCommunicator::ResizeBuffer(" + std::to_string(size) + ")]: Size is greater than max allowable size (" + std::to_string(msgSize) + ").");
+		Logger::GetInstance().log("[UDPCommunicator<" + std::to_string(id) + ">::ResizeBuffer(" + std::to_string(size) + ")]: Size is greater than max allowable size (" + std::to_string(msgSize) + ").", debug_level::ERROR);
+		throw std::runtime_error("[UDPCommunicator<" + std::to_string(id) + ">::ResizeBuffer(" + std::to_string(size) + ")]: Size is greater than max allowable size (" + std::to_string(msgSize) + ").");
 	}
 	if(recv_buffer->size() < size){
 		recv_buffer->resize(size);
@@ -122,7 +125,7 @@ void UDPCommunicator::ResizeBuffer(unsigned int size){
 }
 
 void UDPCommunicator::ResetBuffer(){
-	Logger::GetInstance().log("[UDPCommunicator::ResetBuffer] clearing and setting incoming buffer size to " + std::to_string(msgSize), debug_level::INFO);
+	Logger::GetInstance().log("[UDPCommunicator<" + std::to_string(id) + ">::ResetBuffer] clearing and setting incoming buffer size to " + std::to_string(msgSize), debug_level::INFO);
 	ResizeBuffer(msgSize);
 	for(int i = 0; i < msgSize; i += 1){
 		recv_buffer->at(i) = ' ';
@@ -142,19 +145,19 @@ void UDPCommunicator::HandleSend(boost::shared_ptr<std::string> message,
 	if(err){
 		connected = false;
 		connStatus.consecutiveFailures++;
-		Logger::GetInstance().log("[UDPCommunicator::HandleSend] Failed: " + err.message(), debug_level::ERROR);
+		Logger::GetInstance().log("[UDPCommunicator<" + std::to_string(id) + ">::HandleSend] Failed: " + err.message(), debug_level::ERROR);
 		
 		auto categorized = categorizeSocketError(err);
 		SendException ex(
 			SendError::NetworkError,
-			"[UDPCommunicator::HandleSend]", 
+			"[UDPCommunicator<" + std::to_string(id) + ">::HandleSend]", 
 			"Failed to send: " + err.message()
 		);
 		
 		if(onError){
 			onError(ex);
 		}
-		Logger::GetInstance().log("[UDPCommunicator::HandleSend(" + *message + ",__, " + std::to_string(transferred) + ")] Failed: " + err.message(), debug_level::ERROR);
+		Logger::GetInstance().log("[UDPCommunicator<" + std::to_string(id) + ">::HandleSend(" + *message + ",__, " + std::to_string(transferred) + ")] Failed: " + err.message(), debug_level::ERROR);
 	}
 	else{
 		connected = true;
@@ -164,30 +167,30 @@ void UDPCommunicator::HandleSend(boost::shared_ptr<std::string> message,
 }
 
 void UDPCommunicator::Send(string message, bool async){
-	Logger::GetInstance().log("[UDPCommunicator::Send] sending message", debug_level::INFO);
+	Logger::GetInstance().log("[UDPCommunicator<" + std::to_string(id) + ">::Send] sending message", debug_level::INFO);
 	auto s_state = validateSocketState();
 	
 	switch(s_state){
 		case SocketStateError::NullSocket:
-			Logger::GetInstance().log("[UDPCommunicator::Send]: NullSocket error.", debug_level::ERROR);
-			throw ConnectionException(SocketStateError::NullSocket, "[UDPCommunicator::Send]", "Socket is null");
+			Logger::GetInstance().log("[UDPCommunicator<" + std::to_string(id) + ">::Send]: NullSocket error.", debug_level::ERROR);
+			throw ConnectionException(SocketStateError::NullSocket, "[UDPCommunicator<" + std::to_string(id) + ">::Send]", "Socket is null");
 		case SocketStateError::NotOpen:
-			Logger::GetInstance().log("[UDPCommunicator::Send]: NotOpen error.", debug_level::ERROR);
-			throw ConnectionException(SocketStateError::NotOpen, "[UDPCommunicator::Send]", "Socket is not open");
+			Logger::GetInstance().log("[UDPCommunicator<" + std::to_string(id) + ">::Send]: NotOpen error.", debug_level::ERROR);
+			throw ConnectionException(SocketStateError::NotOpen, "[UDPCommunicator<" + std::to_string(id) + ">::Send]", "Socket is not open");
 		case SocketStateError::NotConnected:
-			Logger::GetInstance().log("[UDPCommunicator::Send]: NotConnected error.", debug_level::ERROR);
-			throw ConnectionException(SocketStateError::NotConnected, "[UDPCommunicator::Send]", "Not connected to endpoint");
+			Logger::GetInstance().log("[UDPCommunicator<" + std::to_string(id) + ">::Send]: NotConnected error.", debug_level::ERROR);
+			throw ConnectionException(SocketStateError::NotConnected, "[UDPCommunicator<" + std::to_string(id) + ">::Send]", "Not connected to endpoint");
 		default:
 			break;
 	}
 	
 	if(!connected){
-		Logger::GetInstance().log("[UDPCommunicator::Send] Unable to send without an endpoint.", debug_level::ERROR);
-		throw ConnectionException(SocketStateError::NotConnected, "[UDPCommunicator::Send]", "Unable to send without an endpoint");
+		Logger::GetInstance().log("[UDPCommunicator<" + std::to_string(id) + ">::Send] Unable to send without an endpoint.", debug_level::ERROR);
+		throw ConnectionException(SocketStateError::NotConnected, "[UDPCommunicator<" + std::to_string(id) + ">::Send]", "Unable to send without an endpoint");
 	}
 
 	if(!ValidateMessageSize(message.size())){
-		throw SendException(SendError::BufferOverflow, "[UDPCommunicator::Send]", 
+		throw SendException(SendError::BufferOverflow, "[UDPCommunicator<" + std::to_string(id) + ">::Send]", 
 			"Message size " + std::to_string(message.size()) + " exceeds maximum " + std::to_string(msgSize));
 	}
 	
@@ -195,8 +198,8 @@ void UDPCommunicator::Send(string message, bool async){
 	*outgoing = message;
 	outgoing->shrink_to_fit();
 	sendStartTime = std::chrono::steady_clock::now();
-	SetSendTimeout([](const OperationTimeoutException& e){
-			Logger::GetInstance().log("[UDPCommunicator::Send] operation timed out.", debug_level::ERROR);
+	SetSendTimeout([this](const OperationTimeoutException& e){
+			Logger::GetInstance().log("[UDPCommunicator<" + std::to_string(id) + ">::Send] operation timed out.", debug_level::ERROR);
 			});
 	if(async){
 		socket->async_send_to(buffer(*outgoing),
@@ -214,20 +217,20 @@ void UDPCommunicator::Send(string message, bool async){
 
 }
 
-void UDPCommunicator::Reply(string message){
-	Logger::GetInstance().log("[UDPCommunicator::Reply] replying", debug_level::INFO);
+void UDPCommunicator::Reply(string message, bool async){
+	Logger::GetInstance().log("[UDPCommunicator<" + std::to_string(id) + ">::Reply] replying", debug_level::INFO);
 	
 	auto s_state = validateSocketState();
 	if(s_state != SocketStateError::None){
-		throw ConnectionException(s_state, "[UDPCommunicator::Reply]", "Invalid socket state");
+		throw ConnectionException(s_state, "[UDPCommunicator<" + std::to_string(id) + ">::Reply]", "Invalid socket state");
 	}
 	
 	if(!connected){
-		throw ConnectionException(SocketStateError::NotConnected, "[UDPCommunicator::Reply]", "Cannot reply without first being contacted");
+		throw ConnectionException(SocketStateError::NotConnected, "[UDPCommunicator<" + std::to_string(id) + ">::Reply]", "Cannot reply without first being contacted");
 	}
 
 	if(!ValidateMessageSize(message.size())){
-		throw SendException(SendError::BufferOverflow, "[UDPCommunicator::Reply]", 
+		throw SendException(SendError::BufferOverflow, "[UDPCommunicator<" + std::to_string(id) + ">::Reply]", 
 			"Message size " + std::to_string(message.size()) + " exceeds maximum " + std::to_string(msgSize));
 	}
 	
@@ -235,35 +238,40 @@ void UDPCommunicator::Reply(string message){
 	outgoing->shrink_to_fit();
 	*outgoing = message;
 	sendStartTime = std::chrono::steady_clock::now();
-	SetSendTimeout([](const OperationTimeoutException& e){
-			Logger::GetInstance().log("[UDPCommunicator::Reply] operation timed out", debug_level::ERROR);
+	SetSendTimeout([this](const OperationTimeoutException& e){
+			Logger::GetInstance().log("[UDPCommunicator<" + std::to_string(id) + ">::Reply] operation timed out", debug_level::ERROR);
 			});
-	socket->async_send_to(buffer(*outgoing),
-		remote_end,	
-		boost::bind(&UDPCommunicator::HandleSend,
-			this,
-			outgoing,
-			boost::asio::placeholders::error, 
-			boost::asio::placeholders::bytes_transferred));
+	if(async){
+		socket->async_send_to(buffer(*outgoing),
+			remote_end,	
+			boost::bind(&UDPCommunicator::HandleSend,
+				this,
+				outgoing,
+				boost::asio::placeholders::error, 
+				boost::asio::placeholders::bytes_transferred));
+	}
+	else {
+		socket->send_to(buffer(*outgoing), remote_end);
+	}
 	runContext();
 }
 
 
 void UDPCommunicator::Receive(bool async){
-	Logger::GetInstance().log("[UDPCommunicator::Receive] receiving", debug_level::DEBUG);
+	Logger::GetInstance().log("[UDPCommunicator<" + std::to_string(id) + ">::Receive] receiving", debug_level::DEBUG);
 	
 	auto s_state = validateSocketState();
 	if(s_state != SocketStateError::None && s_state != SocketStateError::NotConnected){
-		throw ConnectionException(s_state, "[UDPCommunicator::Receive]", "Invalid socket state");
+		throw ConnectionException(s_state, "[UDPCommunicator<" + std::to_string(id) + ">::Receive]", "Invalid socket state");
 	}
 	
 	ResetBuffer();
 	receiveStartTime = std::chrono::steady_clock::now();
-	SetReceiveTimeout([](const OperationTimeoutException e){
-		Logger::GetInstance().log("[UDPCommunicator::Receive] operation timed out", debug_level::ERROR);
+	SetReceiveTimeout([this](const OperationTimeoutException e){
+		Logger::GetInstance().log("[UDPCommunicator<" + std::to_string(id) + ">::Receive] operation timed out", debug_level::ERROR);
 		});
 	if(!connected){
-		Logger::GetInstance().log("[UDPCommunicator::Receive] Receiving on unconnected socket.", debug_level::DEBUG);
+		Logger::GetInstance().log("[UDPCommunicator<" + std::to_string(id) + ">::Receive] Receiving on unconnected socket.", debug_level::DEBUG);
 		if(async){
 			socket->async_receive_from(buffer(*recv_buffer),
 				remote_end,
@@ -278,7 +286,7 @@ void UDPCommunicator::Receive(bool async){
 	}
 	else{
 		size_t transferred;
-		Logger::GetInstance().log("[UDPCommunicator::Receive] Receiving on connected socket.", debug_level::DEBUG);
+		Logger::GetInstance().log("[UDPCommunicator<" + std::to_string(id) + ">::Receive] Receiving on connected socket.", debug_level::DEBUG);
 		if(async){
 			socket->async_receive(buffer(*recv_buffer),
 				boost::bind(&UDPCommunicator::StoreMessage,
@@ -298,12 +306,12 @@ void UDPCommunicator::Receive(bool async){
 
 void UDPCommunicator::StoreMessage(const boost::system::error_code &err, 
 		std::size_t transferred){
-	Logger::GetInstance().log("[UDPCommunicator::StoreMessage] storing message.", debug_level::INFO);
+	Logger::GetInstance().log("[UDPCommunicator<" + std::to_string(id) + ">::StoreMessage] storing message.", debug_level::INFO);
 	CancelReceiveTimer();
 	std::regex pattern("^u[:digit:]+$", std::regex_constants::extended);
 	if(!err && std::regex_match(*recv_buffer, pattern)){
 		connected = true;
-		Logger::GetInstance().log("[UDPCommunicator::StoreMessage] Split message requested.", debug_level::INFO);
+		Logger::GetInstance().log("[UDPCommunicator<" + std::to_string(id) + ">::StoreMessage] Split message requested.", debug_level::INFO);
 		int upper = std::stoi(recv_buffer->substr(1, recv_buffer->size()));
 		string substr = outgoing->substr(upper, outgoing->size() - upper);
 		Send(substr);
@@ -312,13 +320,13 @@ void UDPCommunicator::StoreMessage(const boost::system::error_code &err,
 	CancelReceiveTimer();
 	if(!err && transferred > msgSize){
 		connected = true;
-		Logger::GetInstance().log("[UDPCommunicator::StoreMessage] Requesting split message.", debug_level::INFO);
+		Logger::GetInstance().log("[UDPCommunicator<" + std::to_string(id) + ">::StoreMessage] Requesting split message.", debug_level::INFO);
 		auto remainder = transferred - msgSize;
 		Reply("u" + std::to_string(remainder));
 		return;
 	}
 	else if(!err && transferred <= msgSize){
-		Logger::GetInstance().log("[UDPCommunicator::StoreMessage] Successfully received " + *recv_buffer, debug_level::INFO);
+		Logger::GetInstance().log("[UDPCommunicator<" + std::to_string(id) + ">::StoreMessage] Successfully received " + *recv_buffer, debug_level::INFO);
 		ResizeBuffer(transferred);
 		connected = true;
 		updateHeartbeat();
@@ -331,7 +339,7 @@ void UDPCommunicator::StoreMessage(const boost::system::error_code &err,
 		ResetBuffer();
 		throw ReceiveException(
 			(categorized == SocketStateError::RemoteClosed) ? ReceiveError::ConnectionClosed : ReceiveError::NetworkError,
-			"[UDPCommunicator::StoreMessage]", 
+			"[UDPCommunicator<" + std::to_string(id) + ">::StoreMessage]", 
 			"Error receiving: " + err.message()
 		);
 	}
@@ -340,12 +348,12 @@ void UDPCommunicator::StoreMessage(const boost::system::error_code &err,
 
 
 void UDPCommunicator::Connect(boost::asio::io_context & context, string address){
-	Logger::GetInstance().log("[UDPCommunicator::Connect] connecting to: " + address, debug_level::INFO);
+	Logger::GetInstance().log("[UDPCommunicator<" + std::to_string(id) + ">::Connect] connecting to: " + address, debug_level::INFO);
 	
 	auto s_state = validateSocketState();
 	if(s_state == SocketStateError::NullSocket){
-		Logger::GetInstance().log("[UDPCommunicator::Connect] Socket is null", debug_level::ERROR);
-		throw ConnectionException(SocketStateError::NullSocket, "[UDPCommunicator::Connect]", "Socket is null");
+		Logger::GetInstance().log("[UDPCommunicator<" + std::to_string(id) + ">::Connect] Socket is null", debug_level::ERROR);
+		throw ConnectionException(SocketStateError::NullSocket, "[UDPCommunicator<" + std::to_string(id) + ">::Connect]", "Socket is null");
 	}
 	
 	boost::system::error_code err;
@@ -353,8 +361,8 @@ void UDPCommunicator::Connect(boost::asio::io_context & context, string address)
 	boost::asio::ip::udp::resolver::results_type res = r.resolve(address, std::to_string(0xBEEF), err);
 	
 	if(err || res.empty()){
-		Logger::GetInstance().log("[UDPCommunicator::Connect] Failed to resolve address: " + address + " - " + err.message(), debug_level::ERROR);
-		throw ConnectionException("[UDPCommunicator::Connect]", "Failed to resolve address: " + address + " - " + err.message());
+		Logger::GetInstance().log("[UDPCommunicator<" + std::to_string(id) + ">::Connect] Failed to resolve address: " + address + " - " + err.message(), debug_level::ERROR);
+		throw ConnectionException("[UDPCommunicator<" + std::to_string(id) + ">::Connect]", "Failed to resolve address: " + address + " - " + err.message());
 	}
 	
 	for(auto it = res.begin() ; it != res.end(); it ++){
@@ -370,11 +378,11 @@ void UDPCommunicator::Connect(boost::asio::io_context & context, string address)
 }
 
 void UDPCommunicator::Connect(boost::asio::io_context & context,string address, unsigned int port){
-	Logger::GetInstance().log("[UDPCommunicator::Connect] connecting to: " + address + ":" + std::to_string(port), debug_level::INFO);
+	Logger::GetInstance().log("[UDPCommunicator<" + std::to_string(id) + ">::Connect] connecting to: " + address + ":" + std::to_string(port), debug_level::INFO);
 	
 	auto s_state = validateSocketState();
 	if(s_state == SocketStateError::NullSocket){
-		throw ConnectionException(SocketStateError::NullSocket, "[UDPCommunicator::Connect]", "Socket is null");
+		throw ConnectionException(SocketStateError::NullSocket, "[UDPCommunicator<" + std::to_string(id) + ">::Connect]", "Socket is null");
 	}
 	
 	boost::system::error_code err;
@@ -382,7 +390,7 @@ void UDPCommunicator::Connect(boost::asio::io_context & context,string address, 
 	boost::asio::ip::udp::resolver::results_type res = r.resolve(address, std::to_string(port), err);
 	
 	if(err || res.empty()){
-		throw ConnectionException("[UDPCommunicator::Connect]", "Failed to resolve: " + address + ":" + std::to_string(port) + " - " + err.message());
+		throw ConnectionException("[UDPCommunicator<" + std::to_string(id) + ">::Connect]", "Failed to resolve: " + address + ":" + std::to_string(port) + " - " + err.message());
 	}
 	
 	for(auto it = res.begin() ; it != res.end(); it ++){
